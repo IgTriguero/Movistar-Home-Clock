@@ -1,0 +1,59 @@
+{
+  "games": [
+    {
+      "id": 1001,
+      "sportId": 1,
+      "competitionDisplayName": "Liga de las Naciones - UEFA - Liga A - Grupo 3",
+      "startTime": "2026-11-12T20:45:00+01:00",
+      "statusGroup": 3,
+      "statusText": "Primer Tiempo",
+      "gameTimeDisplay": "21'",
+      "gameTime": 21.0,
+      "homeCompetitor": {"id": 5051, "name": "Republica Checa", "score": 0},
+      "awayCompetitor": {"id": 5050, "name": "España", "score": 0}
+    },
+    {
+      "id": 1002,
+      "sportId": 2,
+      "competitionDisplayName": "Euroliga",
+      "startTime": "2026-11-12T21:00:00+01:00",
+      "statusGroup": 2,
+      "statusText": "Prog.",
+      "gameTimeDisplay": "",
+      "homeCompetitor": {"id": 204, "name": "Real Madrid", "score": -1},
+      "awayCompetitor": {"id": 777, "name": "Crvena Zvezda", "score": -1}
+    },
+    {
+      "id": 1003,
+      "sportId": 1,
+      "competitionDisplayName": "LaLiga",
+      "startTime": "2026-11-12T19:00:00+01:00",
+      "statusGroup": 4,
+      "statusText": "Aplazado",
+      "gameTimeDisplay": "",
+      "homeCompetitor": {"id": 131, "name": "Real Madrid", "score": -1},
+      "awayCompetitor": {"id": 174, "name": "Rayo Vallecano", "score": -1}
+    },
+    {
+      "id": 1004,
+      "sportId": 1,
+      "competitionDisplayName": "LaLiga",
+      "startTime": "2026-11-12T18:00:00+01:00",
+      "statusGroup": 4,
+      "statusText": "Cancelado",
+      "gameTimeDisplay": "",
+      "homeCompetitor": {"id": 108, "name": "Liverpool", "score": -1},
+      "awayCompetitor": {"id": 999, "name": "Everton", "score": -1}
+    },
+    {
+      "id": 1005,
+      "sportId": 1,
+      "competitionDisplayName": "LaLiga",
+      "startTime": "2026-11-12T18:00:00+01:00",
+      "statusGroup": 4,
+      "statusText": "Finalizado",
+      "homeCompetitor": {"id": 100, "name": "Otro", "score": 1},
+      "awayCompetitor": {"id": 101, "name": "Rival", "score": 0}
+    }
+  ]
+}

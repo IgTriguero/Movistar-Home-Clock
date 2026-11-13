@@ -1,0 +1,34 @@
+{
+  "results": [
+    {
+      "id": 3105801,
+      "name": "Vigo",
+      "latitude": 42.23282,
+      "longitude": -8.72264,
+      "elevation": 0.0,
+      "feature_code": "PPLA3",
+      "country_code": "ES",
+      "admin1_id": 3336901,
+      "admin2_id": 6360248,
+      "timezone": "Europe/Madrid",
+      "population": 297332,
+      "country_id": 2510769,
+      "country": "España",
+      "admin1": "Galicia",
+      "admin2": "Pontevedra"
+    },
+    {
+      "id": 6360248,
+      "name": "Vigo",
+      "latitude": 42.2333,
+      "longitude": -8.7167,
+      "feature_code": "PPL",
+      "country_code": "ES",
+      "timezone": "Europe/Madrid",
+      "country_id": 2510769,
+      "country": "España",
+      "admin1": "Galicia"
+    }
+  ],
+  "generationtime_ms": 0.85
+}

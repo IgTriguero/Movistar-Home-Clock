@@ -1,0 +1,83 @@
+plugins {
+    id 'com.android.application'
+}
+
+def homeclockVersionCode = (project.findProperty('HOMECLOCK_VERSION_CODE') ?: '1').toInteger()
+def homeclockVersionName = project.findProperty('HOMECLOCK_VERSION_NAME') ?: '1.0'
+def homeclockRepo = project.findProperty('HOMECLOCK_REPO') ?: 'itriguero/homeclock'
+def updateManifestUrl = project.findProperty('HOMECLOCK_UPDATE_URL')
+        ?: "https://github.com/${homeclockRepo}/releases/latest/download/update.json"
+
+// La firma release se lee de keys/keystore.properties (local, fuera de git)
+// o de variables de entorno en CI.
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file('keys/keystore.properties')
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+}
+def keystorePath = System.getenv('HOMECLOCK_KEYSTORE')
+        ?: keystoreProperties.getProperty('storeFile')
+def hasReleaseSigning = keystorePath != null && rootProject.file(keystorePath).exists()
+
+android {
+    namespace 'com.itriguero.homeclock'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "com.itriguero.homeclock"
+        minSdk 26
+        targetSdk 34
+        versionCode homeclockVersionCode
+        versionName homeclockVersionName
+
+        buildConfigField "String", "UPDATE_MANIFEST_URL", "\"${updateManifestUrl}\""
+        buildConfigField "String", "UPDATE_REPO", "\"${homeclockRepo}\""
+    }
+
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile rootProject.file(keystorePath)
+                storePassword System.getenv('HOMECLOCK_STOREPASS')
+                        ?: keystoreProperties.getProperty('storePassword')
+                keyAlias System.getenv('HOMECLOCK_KEY_ALIAS')
+                        ?: keystoreProperties.getProperty('keyAlias')
+                keyPassword System.getenv('HOMECLOCK_KEY_PASS')
+                        ?: keystoreProperties.getProperty('keyPassword')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError false
+    }
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20231013'
+}
+
+// El contrato diario se activa con HOMECLOCK_CONTRACT=1 y se salta en el CI normal.
+tasks.withType(Test).configureEach {
+    systemProperty "homeclock.contract", System.getenv("HOMECLOCK_CONTRACT") ?: ""
+}

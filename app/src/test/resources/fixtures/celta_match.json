@@ -1,0 +1,19 @@
+{
+  "id": "236837",
+  "date": {"date": "2026-09-30 00:00:00.000000", "timezone_type": 3, "timezone": "UTC"},
+  "hour": "17:30",
+  "status": 1,
+  "live_minute": "",
+  "local_team": {
+    "id": 138738,
+    "name": "AS Celtas W",
+    "goals": "3",
+    "shield": "https://t.resfu.com/img_data/equipos/138738.png?size=60x60"
+  },
+  "visitor_team": {
+    "id": 152117,
+    "name": "Real Oviedo W",
+    "goals": "1",
+    "shield": "https://t.resfu.com/img_data/equipos/152117.png?size=60x60"
+  }
+}

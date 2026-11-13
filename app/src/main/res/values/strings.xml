@@ -1,0 +1,140 @@
+<resources>
+    <string name="app_name">Reloj y Tiempo</string>
+    <string name="cancel">Cancelar</string>
+
+    <!-- Ajustes -->
+    <string name="settings_title">Ajustes</string>
+    <string name="settings_back">Volver</string>
+
+    <string name="settings_section_weather">Tiempo</string>
+    <string name="settings_current_city_label">Ciudad actual</string>
+    <string name="settings_city_hint">Busca una ciudad o pueblo</string>
+    <string name="settings_search">Buscar</string>
+    <string name="settings_searching">Buscando…</string>
+    <string name="settings_search_empty">No se encontraron ciudades</string>
+    <string name="settings_search_error">No se pudo buscar. Revisa la conexión.</string>
+    <string name="settings_search_required">Escribe un nombre de ciudad</string>
+    <string name="settings_search_results">Resultados: %1$d</string>
+    <string name="settings_city_saved">Ciudad guardada: %1$s</string>
+
+    <string name="settings_section_matches">Partidos</string>
+    <string name="settings_show_matches">Mostrar partidos</string>
+
+    <string name="settings_section_night">Noche</string>
+    <string name="settings_night_enabled">Modo noche</string>
+    <string name="settings_night_start_label">Inicio</string>
+    <string name="settings_night_end_label">Fin</string>
+    <string name="settings_night_start_hint">23:00</string>
+    <string name="settings_night_end_hint">07:00</string>
+    <string name="settings_night_help">Atenúa la pantalla en esa franja</string>
+    <string name="settings_night_invalid">Formato HH:mm (por ejemplo 23:00)</string>
+
+    <string name="settings_section_test_date">Fecha de prueba</string>
+    <string name="settings_test_date_hint">YYYY-MM-DD (vacío = hoy)</string>
+
+    <string name="settings_section_about">Acerca de</string>
+    <string name="settings_version">Versión %1$s</string>
+    <string name="settings_sources">Fuentes: 365Scores / RFEF / Celta / Open-Meteo</string>
+    <string name="settings_save">Guardar</string>
+
+    <!-- Actualizaciones -->
+    <string name="update_title">Actualización %1$s disponible</string>
+    <string name="update_message">Hay una versión nueva de HomeClock. Se instalará encima de la actual, sin perder los ajustes.</string>
+    <string name="update_install">Instalar</string>
+    <string name="update_later">Más tarde</string>
+    <string name="update_failed">No se pudo instalar la actualización</string>
+    <string name="update_permission_title">Permite instalar desde HomeClock</string>
+    <string name="update_permission_message">Android necesita que autorices a HomeClock para instalar la actualización. Solo hay que hacerlo una vez.</string>
+    <string name="update_open_settings">Abrir ajustes</string>
+    <string name="update_check_button">Buscar actualización</string>
+    <string name="update_checking">Buscando actualización…</string>
+    <string name="update_available">Versión %1$s disponible. Vuelve a la pantalla principal para instalarla.</string>
+    <string name="update_up_to_date">Ya tienes la última versión (%1$s)</string>
+    <string name="update_check_failed">No se pudo comprobar la actualización</string>
+
+    <!-- Principal -->
+    <string name="settings_icon">⚙</string>
+    <string name="settings_desc">Ajustes</string>
+    <string name="panel_hide">OCULTAR</string>
+    <string name="panel_show">PARTIDOS</string>
+    <string name="panel_toggle_desc">Ocultar o mostrar el panel de partidos</string>
+    <string name="clock_placeholder">12:00</string>
+    <string name="date_placeholder">miércoles, 11 de noviembre</string>
+    <string name="weather_icon_placeholder">⛅</string>
+    <string name="temperature_placeholder">--°</string>
+    <string name="city_placeholder">Tres Cantos</string>
+    <string name="loading">Cargando…</string>
+    <string name="today">HOY</string>
+    <string name="tomorrow">MAÑANA</string>
+    <string name="yesterday">AYER</string>
+    <string name="prev_day_icon">◀</string>
+    <string name="next_day_icon">▶</string>
+    <string name="prev_day_desc">Día anterior</string>
+    <string name="next_day_desc">Día siguiente</string>
+    <string name="matches_subtitle">Partidos de tus equipos</string>
+    <string name="sources_short">365Scores · RFEF · Celta</string>
+    <string name="dash">—</string>
+
+    <!-- Tiempo -->
+    <string name="weather_updating">Actualizando…</string>
+    <string name="weather_failed">No se pudo obtener el tiempo</string>
+    <string name="weather_updated">Actualizado %1$s</string>
+    <string name="weather_details">Sensación %1$d°  ·  Humedad %2$d%%  ·  Viento %3$d km/h</string>
+    <string name="weather_offline">Sin conexión · %1$s</string>
+    <string name="weather_error_short">Sin datos · %1$s</string>
+
+    <!-- Partidos -->
+    <string name="matches_loading">Cargando partidos…</string>
+    <string name="matches_error_title">No se pudieron cargar los partidos</string>
+    <string name="matches_retry">Toca para reintentar</string>
+    <string name="matches_empty_day">Sin partidos este día</string>
+    <string name="matches_title_more">%1$s · …</string>
+    <string name="matches_stale">Sin conexión · datos de %1$s</string>
+    <string name="matches_partial">Datos parciales · %1$s</string>
+    <string name="matches_cached">Datos en caché</string>
+    <string name="matches_in_play">en juego</string>
+    <string name="matches_hour_tbd">hora por confirmar</string>
+    <string name="matches_postponed">Aplazado</string>
+    <string name="matches_cancelled">Cancelado</string>
+    <string name="matches_live">En vivo</string>
+    <string name="matches_break">Descanso</string>
+    <string name="browse_return">Vuelve solo en %1$ds</string>
+    <plurals name="matches_count">
+        <item quantity="one">%1$s · %2$d PARTIDO</item>
+        <item quantity="other">%1$s · %2$d PARTIDOS</item>
+    </plurals>
+
+    <!-- Diagnóstico -->
+    <string name="settings_section_diagnostics">Diagnóstico</string>
+    <string name="diag_matches">Partidos: %1$s · %2$d ms · total %3$d</string>
+    <string name="diag_weather">Tiempo: %1$s · %2$s</string>
+    <string name="diag_cache">Caché: %1$s · total %2$d</string>
+    <string name="diag_source_line">%1$s: %2$s · %3$d ms · total %4$d%5$s</string>
+    <string name="diag_source_cache"> · caché</string>
+    <string name="diag_source_error_suffix"> · %1$s</string>
+    <string name="diag_logos">Escudos: memoria %1$d · disco %2$d · red %3$d · fallos %4$d · negativos %5$d</string>
+    <string name="diag_no_data">Sin datos todavía</string>
+    <string name="diag_refresh_now">Actualizar ahora</string>
+    <string name="diag_clear_logos">Borrar caché de escudos</string>
+    <string name="diag_logos_cleared">Caché de escudos borrada</string>
+    <string name="diag_refresh_requested">Actualizando al volver al reloj…</string>
+    <string name="diag_stale_suffix"> · obsoleto</string>
+    <string name="diag_source_ok">OK</string>
+    <string name="diag_source_empty">Sin datos</string>
+    <string name="diag_source_timeout">Timeout</string>
+    <string name="diag_source_http">HTTP</string>
+    <string name="diag_source_parse">Formato</string>
+    <string name="diag_source_offline">Sin conexión</string>
+    <string name="diag_source_error">Error</string>
+
+    <!-- Cuentas y estados -->
+    <string name="countdown_days">en %1$dd %2$dh</string>
+    <string name="countdown_hours">en %1$dh %2$dm</string>
+    <string name="countdown_minutes">en %1$dm %2$ds</string>
+    <string name="countdown_seconds">en %1$ds</string>
+    <string name="match_ft">FT</string>
+    <string name="match_final">Final</string>
+    <string name="match_final_ot">Final/OT</string>
+    <string name="match_penalties">Penaltis</string>
+    <string name="weather_error_icon">⚠️</string>
+</resources>

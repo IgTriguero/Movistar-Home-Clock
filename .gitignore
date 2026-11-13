@@ -1,0 +1,15 @@
+.gradle/
+build/
+local.properties
+keys/
+*.iml
+.idea/
+.DS_Store
+captures/
+*.apk
+.env
+soak-*.csv
+soak-*.events.log
+soak-*.log
+__pycache__/
+*.pyc
