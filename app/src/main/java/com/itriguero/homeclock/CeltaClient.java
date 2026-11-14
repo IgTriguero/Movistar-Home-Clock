@@ -248,6 +248,9 @@ public final class CeltaClient {
             match.trackedIsHome = homeTracked;
             match.trackedName = TRACKED_NAME;
             match.opponentName = homeTracked ? match.awayName : match.homeName;
+            match.trackedId = TrackedTeam.AS_CELTAS_ID;
+            match.homeTracked = homeTracked;
+            match.awayTracked = !homeTracked;
             match.homeId = homeTracked ? TRACKED_ID : -(900000L + i);
             match.awayId = homeTracked ? -(900000L + i) : TRACKED_ID;
 

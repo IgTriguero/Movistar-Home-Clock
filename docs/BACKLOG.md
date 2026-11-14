@@ -6,7 +6,7 @@ sirve para no perder el contexto técnico de cada propuesta.
 Estados: 💡 idea · 🔜 siguiente · 🚧 en curso · ✅ hecho
 Tamaño orientativo: S (1 día) · M (2-3 días) · L (4-5 días)
 
-Última revisión: 14/11/2026 (versión 1.0).
+Última revisión: 14/11/2026 (versión 1.1.1).
 
 ## 1. Varias ciudades guardadas con swipe de tiempo ✅ M
 
@@ -117,18 +117,46 @@ Champions, Copa, ACB, Euroliga, selección) con la etiqueta “según competici�
 más un enlace de búsqueda como respaldo. 365Scores no incluye emisoras en el
 detalle del partido. Revisar la tabla al inicio de cada temporada.
 
-## 5. Configuración de equipos desde la app 🔜 M/L
+## 5. Configuración de equipos desde la app ✅ L
 
-Hoy los equipos están fijados en código (`MatchesClient.TRACKED_IDS_CSV` y
-`MainActivity.shortTeamName`). Falta una pantalla para añadir/quitar equipos,
-persistir los IDs en `Prefs` y hacer dinámicos nombres y escudos. Requiere
-resolver la búsqueda de equipos contra 365Scores.
+**Implementado:** lista editable de hasta 10 equipos, con búsqueda real en
+365Scores, activar/desactivar sin borrar, alta por ID, equipos por defecto y
+migración automática de los cinco IDs históricos más As Celtas.
+
+- `TrackedTeam` guarda proveedor, ID de competidor, deporte, nombre, nombre
+  corto, país, competición, logo y estado. La clave
+  `provider:sportId:competitorId` distingue fútbol y baloncesto del mismo club.
+- `TrackedTeamList` permite lista vacía, limita a 10, deduplica y expone
+  `activeSignature()` para invalidar la caché cuando cambia la selección.
+- `TrackedTeamCodec`/`teams_v1` con versión, migración desde la ausencia de
+  clave, reparación de JSON roto y modo read-only para versiones futuras.
+- `TeamSearchClient` usa `GET /web/search/?query=...`, filtra a fútbol y
+  baloncesto, agrupa por deporte y resuelve la competición principal con
+  `/web/competitions/`. `curated()` añade As Celtas sin red.
+- As Celtas no existe en 365Scores: es una entrada `as-celtas` que activa o
+  desactiva las fuentes RFEF y Celta. Si no está activa, no se consultan.
+- `MatchesClient` recibe los IDs dinámicos y no hace red con la lista vacía.
+  `MatchSource.isEnabledFor` filtra las fuentes y `MatchCache` v2 guarda la
+  firma de equipos para no resucitar partidos de equipos borrados.
+- `MainActivity` usa nombres cortos dinámicos, marca ambos lados si se
+  enfrentan dos equipos seguidos, oculta el panel sin equipos y muestra solo
+  las fuentes activas en el pie.
+- Ajustes → **Equipos**: logo, nombre, competición/país, badge de deporte,
+  checkbox Seguir, borrado con confirmación, contador, estados vacío/todos en
+  pausa, búsqueda con debounce, añadir por ID y restaurar defaults.
+- Tests: modelo, lista, codec, migración, parser dinámico, caché v2,
+  repositorio con fuentes activas, búsqueda y contrato real de 365Scores.
+
+**Nota de fuentes (14/11/2026):** la web de RFEF puede devolver “Error al
+obtener los datos del servicio web” y dejar los selects de jornada vacíos. La
+app conserva el último calendario cacheado y lo marca como caché; Celta sigue
+funcionando con su `admin-ajax.php`.
 
 ## 6. Fallback de fútbol si 365Scores falla 🔜 M
 
-`MatchRepository` reutiliza caché, pero no hay una segunda fuente para Real
-Madrid, Rayo, España o Liverpool. RFEF y Celta solo cubren a As Celtas. Habría
-que elegir una fuente alternativa y normalizarla al modelo `Match`.
+`MatchRepository` reutiliza caché, pero no hay una segunda fuente para los
+equipos de 365Scores que sigue el usuario. RFEF y Celta solo cubren a As Celtas.
+Habría que elegir una fuente alternativa y normalizarla al modelo `Match`.
 
 ## 7. Diagnóstico persistente y aviso de fuente caída ✅ M
 

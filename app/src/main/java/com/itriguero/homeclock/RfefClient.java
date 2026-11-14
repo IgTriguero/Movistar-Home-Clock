@@ -1,7 +1,6 @@
 package com.itriguero.homeclock;
 
 import android.content.Context;
-import android.text.Html;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -74,6 +73,8 @@ public final class RfefClient {
             Pattern.DOTALL);
     private static final Pattern DATE_TIME = Pattern.compile(
             "(\\d{2}/\\d{2}/\\d{4})(?:\\s*-\\s*(\\d{2}:\\d{2}))?");
+    private static final Pattern TAG = Pattern.compile("<[^>]+>");
+    private static final Pattern ENTITY = Pattern.compile("&(#[xX]?[0-9a-fA-F]+|[a-zA-Z]+);");
     private static final Pattern SCORE = Pattern.compile(
             "<div class=\"text-lg\">\\s*(.*?)\\s*</div>", Pattern.DOTALL);
     private static final Pattern SCORE_NUMBERS = Pattern.compile("(\\d+)\\s*-\\s*(\\d+)");
@@ -303,8 +304,8 @@ public final class RfefClient {
             Matcher dateMatcher = DATE_TIME.matcher(chunk);
             if (!homeMatcher.find() || !awayMatcher.find() || !dateMatcher.find()) continue;
 
-            String home = clean(homeMatcher.group(1));
-            String away = clean(awayMatcher.group(1));
+            String home = cleanText(homeMatcher.group(1));
+            String away = cleanText(awayMatcher.group(1));
             if (!isAsCeltas(home) && !isAsCeltas(away)) continue;
 
             String time = dateMatcher.group(2);
@@ -394,6 +395,9 @@ public final class RfefClient {
             match.trackedIsHome = homeTracked;
             match.trackedName = TRACKED_NAME;
             match.opponentName = homeTracked ? away : home;
+            match.trackedId = TrackedTeam.AS_CELTAS_ID;
+            match.homeTracked = homeTracked;
+            match.awayTracked = !homeTracked;
 
             String specialStatus = item.optString("status", "");
             if ("POSTPONED".equals(specialStatus) || "CANCELLED".equals(specialStatus)) {
@@ -420,9 +424,62 @@ public final class RfefClient {
                 && name.toLowerCase(Locale.ROOT).contains("celta");
     }
 
-    private static String clean(String raw) {
-        String text = Html.fromHtml(raw, Html.FROM_HTML_MODE_LEGACY).toString();
-        return text.replaceAll("\\s+", " ").trim();
+    /**
+     * Limpia el HTML de un nombre de equipo sin depender de android.text.Html,
+     * para que el parser pueda validarse en la JVM y en el contrato diario.
+     * Equivale a quitar etiquetas, decodificar entidades y colapsar espacios.
+     */
+    static String cleanText(String raw) {
+        if (raw == null || raw.isEmpty()) return "";
+
+        String text = TAG.matcher(raw).replaceAll(" ");
+        Matcher entity = ENTITY.matcher(text);
+        StringBuffer out = new StringBuffer();
+        while (entity.find()) {
+            String replacement = decodeEntity(entity.group(1));
+            entity.appendReplacement(out, Matcher.quoteReplacement(
+                    replacement == null ? entity.group() : replacement));
+        }
+        entity.appendTail(out);
+        return out.toString().replaceAll("\\s+", " ").trim();
+    }
+
+    /** Devuelve null si la entidad no se reconoce, para dejarla intacta. */
+    private static String decodeEntity(String token) {
+        if (token.startsWith("#")) {
+            try {
+                int codePoint = token.startsWith("#x") || token.startsWith("#X")
+                        ? Integer.parseInt(token.substring(2), 16)
+                        : Integer.parseInt(token.substring(1));
+                if (!Character.isValidCodePoint(codePoint)) return null;
+                return new String(Character.toChars(codePoint));
+            } catch (RuntimeException e) {
+                return null;
+            }
+        }
+        switch (token) {
+            case "amp": return "&";
+            case "lt": return "<";
+            case "gt": return ">";
+            case "quot": return "\"";
+            case "apos": return "'";
+            case "nbsp": return " ";
+            case "aacute": return "á";
+            case "eacute": return "é";
+            case "iacute": return "í";
+            case "oacute": return "ó";
+            case "uacute": return "ú";
+            case "Aacute": return "Á";
+            case "Eacute": return "É";
+            case "Iacute": return "Í";
+            case "Oacute": return "Ó";
+            case "Uacute": return "Ú";
+            case "ntilde": return "ñ";
+            case "Ntilde": return "Ñ";
+            case "uuml": return "ü";
+            case "Uuml": return "Ü";
+            default: return null;
+        }
     }
 
     private static String httpGet(String url) throws Exception {

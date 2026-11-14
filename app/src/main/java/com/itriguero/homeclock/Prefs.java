@@ -18,6 +18,7 @@ final class Prefs {
     private static final String KEY_TEST_DATE = "test_date";
     private static final String KEY_WEATHER_CACHE = "weather_cache";
     private static final String KEY_CITIES = "cities_v2";
+    private static final String KEY_TEAMS = "teams_v1";
     private static final String KEY_WEATHER_CACHE_V2 = "weather_cache_v2";
     private static final String KEY_NIGHT_ENABLED = "night_enabled";
     private static final String KEY_NIGHT_START = "night_start";
@@ -209,6 +210,28 @@ final class Prefs {
         prefs.edit()
                 .putString(KEY_CITIES, encoded)
                 .apply();
+    }
+
+    /**
+     * Lee la lista de equipos seguidos. Si no existe el JSON todavía, siembra
+     * los equipos por defecto; si el valor estaba roto o hubo que repararlo,
+     * guarda la lista corregida. Con una versión futura no se toca.
+     */
+    TrackedTeamList loadTeams() {
+        TrackedTeamCodec.Decoded decoded =
+                TrackedTeamCodec.decode(string(KEY_TEAMS, ""));
+        if (!decoded.readOnly && (decoded.migrated || decoded.repaired)) {
+            saveTeams(decoded.list);
+        }
+        return decoded.list;
+    }
+
+    /** Guarda la lista completa. La lista vacía también es un valor válido. */
+    void saveTeams(TrackedTeamList list) {
+        if (list == null || list.isReadOnly()) return;
+        String encoded = TrackedTeamCodec.encode(list);
+        if (encoded.isEmpty()) return;
+        prefs.edit().putString(KEY_TEAMS, encoded).apply();
     }
 
     String weatherCacheV2() {

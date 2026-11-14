@@ -75,6 +75,8 @@ public class MainActivity extends Activity {
     private MatchDetailRepository matchDetailRepository;
     private MatchDetailDialog matchDetailDialog;
     private DiagnosticsStore diagnosticsStore;
+    private TrackedTeamList trackedTeams;
+    private String lastTeamSignature = "";
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -213,6 +215,9 @@ public class MainActivity extends Activity {
         matchSources = findViewById(R.id.matchSources);
 
         matchRepository = new MatchRepository(getApplicationContext());
+        trackedTeams = prefs.loadTeams();
+        matchRepository.setTeams(trackedTeams);
+        lastTeamSignature = trackedTeams.activeSignature();
         matchDetailRepository = new MatchDetailRepository(this);
         // Idempotente: HomeClockApp ya lo arrancó; aquí solo se recupera.
         diagnosticsStore = DiagnosticsStore.get(this);
@@ -277,8 +282,34 @@ public class MainActivity extends Activity {
         String testDate = prefs.testDate();
         boolean forceRefresh = prefs.consumeRefreshRequest();
 
+        trackedTeams = prefs.loadTeams();
+        matchRepository.setTeams(trackedTeams);
+        String teamSignature = trackedTeams.activeSignature();
+        boolean teamsChanged = !teamSignature.equals(lastTeamSignature);
+        lastTeamSignature = teamSignature;
+        boolean teamsEmpty = trackedTeams.activeCount() == 0;
+        if (teamsEmpty) clearMatchPanelForNoTeams();
+
+        // Tiempo: se mantiene el comportamiento de siempre.
+        boolean weatherDue = now - lastWeatherFetch > WEATHER_INTERVAL_MS;
         if (forceRefresh) {
             lastCitySignature = signature;
+            updateWeatherChrome();
+            refreshWeather();
+        } else if (cityChanged) {
+            lastCitySignature = signature;
+            updateWeatherChrome();
+            // Cambiar de ciudad sin tocar la lista no necesita red mientras
+            // los datos sigan frescos: el snapshot ya trae todas las
+            // ciudades consultadas.
+            if (listChanged || weatherDue) refreshWeather();
+        } else if (weatherDue) {
+            refreshWeather();
+        }
+
+        // Partidos: un cambio de equipos o de ajustes reinicia el panel.
+        if (forceRefresh || teamsChanged || show != lastShowMatches
+                || !testDate.equals(lastTestDate)) {
             lastShowMatches = show;
             lastTestDate = testDate;
             showMatches = show;
@@ -289,37 +320,10 @@ public class MainActivity extends Activity {
             browseDeadline = 0;
             handler.removeCallbacks(browseTimeout);
             updatePanelToggle();
-            updateWeatherChrome();
-            refreshWeather();
+            if (!teamsEmpty) refreshMatches();
+        } else if (show && !teamsEmpty
+                && now - lastMatchesFetch > MATCHES_IDLE_INTERVAL_MS) {
             refreshMatches();
-        } else {
-            boolean weatherDue = now - lastWeatherFetch > WEATHER_INTERVAL_MS;
-            if (cityChanged) {
-                lastCitySignature = signature;
-                updateWeatherChrome();
-                // Cambiar de ciudad sin tocar la lista no necesita red mientras
-                // los datos sigan frescos: el snapshot ya trae todas las
-                // ciudades consultadas.
-                if (listChanged || weatherDue) refreshWeather();
-            } else if (weatherDue) {
-                refreshWeather();
-            }
-
-            if (show != lastShowMatches || !testDate.equals(lastTestDate)) {
-                lastShowMatches = show;
-                lastTestDate = testDate;
-                showMatches = show;
-                testDateOverride = null;
-                panelHidden = false;
-                hiddenSignature = "";
-                browseDate = null;
-                browseDeadline = 0;
-                handler.removeCallbacks(browseTimeout);
-                updatePanelToggle();
-                refreshMatches();
-            } else if (show && now - lastMatchesFetch > MATCHES_IDLE_INTERVAL_MS) {
-                refreshMatches();
-            }
         }
 
         shiftAnchorMillis = System.currentTimeMillis();
@@ -677,11 +681,16 @@ public class MainActivity extends Activity {
             updatePanelToggle();
             return;
         }
+        if (trackedTeams == null || trackedTeams.activeCount() == 0) {
+            clearMatchPanelForNoTeams();
+            return;
+        }
         if (!fetchingMatches.compareAndSet(false, true)) return;
 
         LocalDate fetchDate = resolveFetchDate();
 
         final LocalDate date = fetchDate;
+        final String teamSignature = lastTeamSignature;
         lastFetchedDate = date;
         lastMatchesFetch = System.currentTimeMillis();
 
@@ -698,6 +707,10 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> {
                     fetchingMatches.set(false);
                     if (!running) return;
+                    if (!teamSignature.equals(lastTeamSignature)) {
+                        refreshMatches();
+                        return;
+                    }
                     if (!resolveFetchDate().equals(date)) {
                         refreshMatches();
                         return;
@@ -708,6 +721,10 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> {
                     fetchingMatches.set(false);
                     if (!running) return;
+                    if (!teamSignature.equals(lastTeamSignature)) {
+                        refreshMatches();
+                        return;
+                    }
                     if (!resolveFetchDate().equals(date)) {
                         refreshMatches();
                         return;
@@ -719,6 +736,18 @@ public class MainActivity extends Activity {
                 });
             }
         });
+    }
+
+    /** Deja el panel de partidos limpio cuando no hay ningún equipo activo. */
+    private void clearMatchPanelForNoTeams() {
+        matches.clear();
+        matchRows.clear();
+        if (matchList != null) matchList.removeAllViews();
+        if (matchPanel != null) matchPanel.setVisibility(View.GONE);
+        lastSnapshot = null;
+        handler.removeCallbacks(matchesTick);
+        updateSourceFooter(null);
+        updatePanelToggle();
     }
 
     /**
@@ -738,6 +767,10 @@ public class MainActivity extends Activity {
     private void applySnapshot(MatchesSnapshot snapshot) {
         if (snapshot == null) {
             scheduleMatchesTick(RefreshPolicy.nextDelay(null, System.currentTimeMillis()));
+            return;
+        }
+        if (trackedTeams == null || trackedTeams.activeCount() == 0) {
+            clearMatchPanelForNoTeams();
             return;
         }
         lastSnapshot = snapshot;
@@ -852,41 +885,48 @@ public class MainActivity extends Activity {
     private void updateSourceFooter(MatchesSnapshot snapshot) {
         if (matchSources == null) return;
 
+        List<String> activeIds = activeSourceIds();
         long now = System.currentTimeMillis();
         Map<String, SourceHealth> health = persistedSourceHealth();
 
-        if (snapshot == null) {
-            // Sin snapshot (carga inicial) se conserva el aviso de las
-            // fuentes que ya constan como caídas en el diagnóstico.
-            if (!hasDownSources(health, now)) {
-                matchSources.setText(R.string.sources_short);
-                matchSources.setTextColor(0xFF808080);
-                matchSources.setContentDescription(getString(R.string.sources_short));
-                return;
-            }
-            matchSources.setText(sourcesLine(
-                    persistedFooterLabel(health, Scores365Source.ID, "365Scores", now),
-                    persistedFooterLabel(health, RfefSource.ID, "RFEF", now),
-                    persistedFooterLabel(health, CeltaSource.ID, "Celta", now)));
-            matchSources.setTextColor(0xFFE0A85A);
-            matchSources.setContentDescription(
-                    sourceFooterDescription(null, health, now));
+        if (activeIds.isEmpty()) {
+            matchSources.setText("");
+            matchSources.setTextColor(0xFF808080);
+            matchSources.setContentDescription("");
             return;
         }
 
-        matchSources.setText(sourcesLine(
-                sourceFooterLabel(snapshot, Scores365Source.ID, "365Scores"),
-                sourceFooterLabel(snapshot, RfefSource.ID, "RFEF"),
-                sourceFooterLabel(snapshot, CeltaSource.ID, "Celta")));
+        if (snapshot == null) {
+            // Sin snapshot (carga inicial) se conserva el aviso de las
+            // fuentes activas que ya constan como caídas en el diagnóstico.
+            List<String> labels = new ArrayList<>();
+            for (String id : activeIds) {
+                labels.add(persistedFooterLabel(health, id, sourceDisplayName(id), now));
+            }
+            matchSources.setText(TextUtils.join(" · ", labels));
+            matchSources.setTextColor(hasDownSources(health, now, activeIds)
+                    ? 0xFFE0A85A : 0xFF808080);
+            matchSources.setContentDescription(
+                    sourceFooterDescription(null, health, activeIds, now));
+            return;
+        }
+
+        List<String> labels = new ArrayList<>();
+        for (String id : activeIds) {
+            labels.add(sourceFooterLabel(snapshot, id, sourceDisplayName(id)));
+        }
+        matchSources.setText(TextUtils.join(" · ", labels));
         matchSources.setTextColor(snapshot.hasErrors() || snapshot.stale
-                || hasCachedSources(snapshot) || hasDownSources(health, now)
+                || hasCachedSources(snapshot)
+                || hasDownSources(health, now, activeIds)
                 ? 0xFFE0A85A : 0xFF808080);
         matchSources.setContentDescription(
-                sourceFooterDescription(snapshot, health, now));
+                sourceFooterDescription(snapshot, health, activeIds, now));
     }
 
-    private static String sourcesLine(String first, String second, String third) {
-        return first + " · " + second + " · " + third;
+    private List<String> activeSourceIds() {
+        return matchRepository == null
+                ? Collections.emptyList() : matchRepository.activeSourceIds();
     }
 
     /** Salud de fuentes persistida en el proceso, o vacía si aún no hay. */
@@ -898,10 +938,10 @@ public class MainActivity extends Activity {
     }
 
     private static boolean hasDownSources(Map<String, SourceHealth> health,
-                                          long now) {
-        if (health == null) return false;
-        for (SourceHealth entry : health.values()) {
-            if (SourceHealthPolicy.isDown(entry, now)) return true;
+                                          long now, List<String> activeIds) {
+        if (health == null || activeIds == null) return false;
+        for (String id : activeIds) {
+            if (SourceHealthPolicy.isDown(health.get(id), now)) return true;
         }
         return false;
     }
@@ -914,19 +954,18 @@ public class MainActivity extends Activity {
     }
 
     /**
-     * Texto para TalkBack con el estado de cada fuente, p. ej.
+     * Texto para TalkBack con el estado de cada fuente activa, p. ej.
      * "365Scores: OK; RFEF: caído; Celta: caché".
      */
     private String sourceFooterDescription(MatchesSnapshot snapshot,
                                            Map<String, SourceHealth> health,
+                                           List<String> activeIds,
                                            long now) {
         StringBuilder text = new StringBuilder();
-        appendSourceDescription(text, snapshot, health,
-                Scores365Source.ID, "365Scores", now);
-        appendSourceDescription(text, snapshot, health,
-                RfefSource.ID, "RFEF", now);
-        appendSourceDescription(text, snapshot, health,
-                CeltaSource.ID, "Celta", now);
+        for (String id : activeIds) {
+            appendSourceDescription(text, snapshot, health,
+                    id, sourceDisplayName(id), now);
+        }
         return text.toString();
     }
 
@@ -1115,7 +1154,7 @@ public class MainActivity extends Activity {
 
     private void updatePanelToggle() {
         if (panelToggle == null) return;
-        if (!showMatches) {
+        if (!showMatches || trackedTeams == null || trackedTeams.activeCount() == 0) {
             panelToggle.setVisibility(View.GONE);
             return;
         }
@@ -1313,7 +1352,7 @@ public class MainActivity extends Activity {
         view.setText(displayTeamName(m, home));
         view.setTextColor(0xFFFFFFFF);
         view.setTextSize(sizeSp);
-        boolean tracked = home == m.trackedIsHome;
+        boolean tracked = m.isTrackedSide(home);
         view.setTypeface(null, tracked ? Typeface.BOLD : Typeface.NORMAL);
         view.setGravity(home ? Gravity.START : Gravity.END);
         view.setSingleLine(true);
@@ -1430,7 +1469,7 @@ public class MainActivity extends Activity {
     }
 
     private String displayTeamName(Match m, boolean home) {
-        boolean tracked = home == m.trackedIsHome;
+        boolean tracked = m.isTrackedSide(home);
         if (tracked) return shortTeamName(m);
         return compactName(home ? m.homeName : m.awayName);
     }
@@ -1552,15 +1591,12 @@ public class MainActivity extends Activity {
     }
 
     private String shortTeamName(Match m) {
-        long id = m.trackedIsHome ? m.homeId : m.awayId;
-        switch ((int) id) {
-            case 131: return "REAL MADRID";
-            case 174: return "RAYO";
-            case 108: return "LIVERPOOL";
-            case 5050: return "ESPAÑA";
-            case 204: return "R. MADRID BAL.";
-            default: return m.trackedName.toUpperCase(Locale.getDefault());
-        }
+        long id = m.trackedId != 0 ? m.trackedId
+                : (m.trackedIsHome ? m.homeId : m.awayId);
+        String label = trackedTeams == null
+                ? null : trackedTeams.panelLabel(id, m.trackedName);
+        return label == null || label.isEmpty()
+                ? m.trackedName.toUpperCase(Locale.getDefault()) : label;
     }
 
     private void scheduleMatchesTick(long delay) {

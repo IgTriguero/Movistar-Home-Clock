@@ -12,6 +12,18 @@ import static org.junit.Assert.assertNotNull;
 public class RfefClientParserTest {
 
     @Test
+    public void cleansTeamNamesWithoutAndroidHtml() {
+        assertEquals("Madrid CF Femenino 'B'",
+                RfefClient.cleanText("Madrid CF Femenino &#039;B&#039;"));
+        assertEquals("As Celtas", RfefClient.cleanText("  As\n\tCeltas  "));
+        assertEquals("Rayo & Cía", RfefClient.cleanText("Rayo &amp; C&#237;a"));
+        assertEquals("Real Avilés", RfefClient.cleanText("<span>Real</span> Avil&eacute;s"));
+        assertEquals("", RfefClient.cleanText(null));
+        assertEquals("", RfefClient.cleanText("   "));
+        assertEquals("&desconocida;", RfefClient.cleanText("&desconocida;"));
+    }
+
+    @Test
     public void parsesJourneyOptionsFromFixture() throws Exception {
         JSONArray journeys = RfefClient.parseJourneys(fixture());
 

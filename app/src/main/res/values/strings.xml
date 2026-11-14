@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">Reloj y Tiempo</string>
     <string name="cancel">Cancelar</string>
 
@@ -50,6 +50,61 @@
     <string name="settings_search_error">No se pudo buscar. Revisa la conexión.</string>
     <string name="settings_search_required">Escribe un nombre de ciudad</string>
     <string name="settings_search_results">Resultados: %1$d</string>
+
+    <!-- Equipos -->
+    <string name="settings_section_teams">Equipos</string>
+    <string name="settings_teams_help">Elige los equipos del panel. Si se enfrentan dos equipos seguidos, se destacan los dos.</string>
+    <string name="settings_teams_count">%1$d / %2$d · activos: %3$d</string>
+    <string name="settings_teams_empty">No sigues ningún equipo. El panel de partidos estará oculto.</string>
+    <string name="settings_teams_all_paused">Todos los equipos están en pausa.</string>
+    <string name="settings_teams_readonly">La lista de equipos viene de una versión más nueva y no se puede modificar.</string>
+    <string name="settings_teams_full">Máximo 10 equipos</string>
+    <string name="settings_team_follow">Seguir</string>
+    <string name="settings_team_paused">En pausa</string>
+    <string name="settings_team_delete_symbol">✕</string>
+    <string name="settings_team_state_active">activo</string>
+    <string name="settings_team_state_paused">en pausa</string>
+    <string name="settings_team_follow_desc">Mostrar partidos de %1$s</string>
+    <string name="settings_team_delete_desc">Dejar de seguir a %1$s</string>
+    <string name="settings_team_remove_title">Dejar de seguir</string>
+    <string name="settings_team_remove_message">¿Dejar de seguir a %1$s?</string>
+    <string name="settings_team_remove_confirm">Dejar de seguir</string>
+    <string name="settings_team_removed">Equipo eliminado: %1$s</string>
+    <string name="settings_team_added">Equipo añadido: %1$s</string>
+    <string name="settings_team_exists">Ya estaba en la lista: %1$s</string>
+    <string name="settings_team_reactivated">Equipo reactivado: %1$s</string>
+    <string name="settings_team_enabled">Equipo activado: %1$s</string>
+    <string name="settings_team_paused_status">Equipo en pausa: %1$s</string>
+    <string name="settings_team_invalid">No se pudo añadir el equipo</string>
+    <string name="settings_teams_add_defaults">Añadir equipos por defecto</string>
+    <string name="settings_teams_defaults_added">Equipos añadidos: %1$d</string>
+    <string name="settings_teams_defaults_none">Ya están todos los equipos por defecto</string>
+    <string name="settings_team_search_label">Añadir equipo</string>
+    <string name="settings_team_hint">Busca un equipo (mínimo 2 letras)</string>
+    <string name="settings_team_search">Buscar equipo</string>
+    <string name="settings_team_searching">Buscando equipos…</string>
+    <string name="settings_team_search_results">Equipos encontrados: %1$d</string>
+    <string name="settings_team_search_empty">No se encontraron equipos</string>
+    <string name="settings_team_search_required">Escribe al menos 2 letras</string>
+    <string name="settings_team_search_offline">Sin conexión. Se muestran las sugerencias.</string>
+    <string name="settings_team_search_timeout">365Scores tardó demasiado en responder.</string>
+    <string name="settings_team_search_http">El servicio de equipos no está disponible ahora.</string>
+    <string name="settings_team_search_rate" tools:ignore="Typos">Demasiadas búsquedas. Espera un momento.</string>
+    <string name="settings_team_search_parse">La respuesta del servicio no se pudo leer.</string>
+    <string name="settings_team_search_error">No se pudo buscar. Revisa la conexión.</string>
+    <string name="settings_team_search_not_found">No se encontró ese equipo.</string>
+    <string name="settings_team_result_add">Añadir</string>
+    <string name="settings_team_result_added">Ya añadido</string>
+    <string name="settings_team_result_paused">En pausa</string>
+    <string name="settings_team_group_football">Fútbol</string>
+    <string name="settings_team_group_basketball">Baloncesto</string>
+    <string name="settings_team_by_id">¿No encuentras tu equipo? Añadir por ID</string>
+    <string name="settings_team_by_id_title">Añadir equipo por ID</string>
+    <string name="settings_team_by_id_hint">ID de 365Scores</string>
+    <string name="settings_team_by_id_invalid">Escribe un ID válido</string>
+    <string name="settings_team_by_id_working">Buscando el equipo…</string>
+    <string name="settings_team_by_id_not_found">No existe un equipo de fútbol o baloncesto con ese ID</string>
+    <string name="settings_team_curated">Sugerencia local</string>
 
     <string name="settings_section_matches">Partidos</string>
     <string name="settings_show_matches">Mostrar partidos</string>

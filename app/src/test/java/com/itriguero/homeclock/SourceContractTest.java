@@ -36,13 +36,12 @@ import static org.junit.Assume.assumeTrue;
  *
  * Cubierto aquí:
  * - 365Scores, por el camino real de Scores365Source/MatchesClient.
+ * - 365Scores, búsqueda de equipos y lookup por ID con TeamSearchClient.
  * - Open-Meteo geocoding, por CitySearchClient.search.
- * - RFEF, solo parseJourneys (parser estático, sin Android).
+ * - RFEF, parseJourneys y parseMatches (parsers estáticos, sin Android).
  * - Celta, solo parseMatch (parser estático, sin Android).
  *
  * Fuera del contrato:
- * - RfefClient.parseMatches es privado y usa android.text.Html; no se puede
- *   invocar desde una unit test JVM sin cambiar producción.
  * - RfefClient.fetch/CeltaClient.fetch necesitan Context (filesDir) y no
  *   aportan nada al parser que ya se valida aquí.
  */
@@ -329,6 +328,109 @@ public class SourceContractTest {
                     containsCelta(parsed.optString("home"))
                             || containsCelta(parsed.optString("away")));
         }
+    }
+
+    @Test
+    public void scores365TeamSearchFindsRealMadridFootballAndBasketball() throws Exception {
+        requireContract();
+
+        List<TrackedTeam> results = searchTeamsWithRetry("Real Madrid");
+        assertNotNull("365Scores no devolvió resultados para Real Madrid", results);
+        assertFalse("365Scores devolvió una búsqueda vacía para Real Madrid",
+                results.isEmpty());
+        assertTrue("La búsqueda debe respetar el límite de 12 resultados",
+                results.size() <= 12);
+
+        TrackedTeam football = findTeam(results, 131L);
+        TrackedTeam basketball = findTeam(results, 204L);
+        assertNotNull("365Scores ya no devuelve el Real Madrid de fútbol (131)",
+                football);
+        assertNotNull("365Scores ya no devuelve el Real Madrid de baloncesto (204)",
+                basketball);
+        assertEquals("Deporte inesperado para el 131",
+                TrackedTeam.SPORT_FOOTBALL, football.sportId);
+        assertEquals("Deporte inesperado para el 204",
+                TrackedTeam.SPORT_BASKETBALL, basketball.sportId);
+        assertFalse("El nombre del 131 está vacío", football.name.trim().isEmpty());
+        assertFalse("El nombre del 204 está vacío", basketball.name.trim().isEmpty());
+    }
+
+    @Test
+    public void scores365TeamSearchFindsRayoVallecano() throws Exception {
+        requireContract();
+
+        List<TrackedTeam> results = searchTeamsWithRetry("Rayo Vallecano");
+        assertNotNull("365Scores no devolvió resultados para Rayo Vallecano", results);
+        assertNotNull("365Scores ya no devuelve el Rayo Vallecano (174)",
+                findTeam(results, 174L));
+    }
+
+    @Test
+    public void scores365TeamSearchDoesNotFakeAsCeltas() throws Exception {
+        requireContract();
+
+        List<TrackedTeam> results = searchTeamsWithRetry("As Celtas");
+        assertNotNull("365Scores no devolvió resultados para As Celtas", results);
+        for (TrackedTeam team : results) {
+            assertFalse("365Scores ya incluye un equipo llamado As Celtas ("
+                            + team.competitorId + "); revisa la entrada curada "
+                            + "de TeamSearchClient",
+                    "as celtas".equals(team.name.trim().toLowerCase(Locale.ROOT)));
+        }
+
+        List<TrackedTeam> curated = TeamSearchClient.curated("As Celtas");
+        assertEquals("La entrada curada de As Celtas debe ser única",
+                1, curated.size());
+        assertEquals(TrackedTeam.PROVIDER_AS_CELTAS, curated.get(0).provider);
+        assertEquals(TrackedTeam.AS_CELTAS_ID, curated.get(0).competitorId);
+    }
+
+    @Test
+    public void scores365CompetitorLookupFindsBasketballRealMadrid() throws Exception {
+        requireContract();
+
+        TrackedTeam team = fetchTeamWithRetry(204L);
+        assertNotNull("365Scores no devolvió el competidor 204", team);
+        assertEquals("Real Madrid", team.name);
+        assertEquals(TrackedTeam.SPORT_BASKETBALL, team.sportId);
+    }
+
+    private static List<TrackedTeam> searchTeamsWithRetry(String query) throws Exception {
+        try {
+            return TeamSearchClient.search(query);
+        } catch (TeamSearchClient.TeamSearchException e) {
+            if (!isRetryableTeamSearch(e)) throw e;
+            Thread.sleep(2_000L);
+            return TeamSearchClient.search(query);
+        }
+    }
+
+    private static TrackedTeam fetchTeamWithRetry(long id) throws Exception {
+        try {
+            return TeamSearchClient.fetchById(id);
+        } catch (TeamSearchClient.TeamSearchException e) {
+            if (!isRetryableTeamSearch(e)) throw e;
+            Thread.sleep(2_000L);
+            return TeamSearchClient.fetchById(id);
+        }
+    }
+
+    private static boolean isRetryableTeamSearch(
+            TeamSearchClient.TeamSearchException e) {
+        if (e.kind == TeamSearchClient.TeamSearchException.Kind.OFFLINE
+                || e.kind == TeamSearchClient.TeamSearchException.Kind.TIMEOUT) {
+            return true;
+        }
+        return e.kind == TeamSearchClient.TeamSearchException.Kind.HTTP
+                && e.httpStatus >= 500;
+    }
+
+    private static TrackedTeam findTeam(List<TrackedTeam> teams, long id) {
+        if (teams == null) return null;
+        for (TrackedTeam team : teams) {
+            if (team.competitorId == id) return team;
+        }
+        return null;
     }
 
     private static String celtaCompetitionBody(String season) throws Exception {

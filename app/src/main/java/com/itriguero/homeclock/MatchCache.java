@@ -27,7 +27,7 @@ import java.util.Map;
  */
 public final class MatchCache {
 
-    static final int VERSION = 1;
+    static final int VERSION = 2;
 
     private static final String PREFIX = "matches_";
     private static final String SUFFIX = ".json";
@@ -43,6 +43,14 @@ public final class MatchCache {
     }
 
     public void save(MatchesSnapshot snapshot) {
+        save(snapshot, null);
+    }
+
+    /**
+     * Guarda el snapshot junto a la firma de equipos que lo produjo. Una
+     * firma vacía se acepta al leer para no invalidar cachés antiguas.
+     */
+    public void save(MatchesSnapshot snapshot, String teamsSignature) {
         if (snapshot == null || snapshot.date == null || dir == null) return;
 
         File file = fileFor(snapshot.date);
@@ -50,7 +58,7 @@ public final class MatchCache {
         try {
             if (!dir.exists() && !dir.mkdirs()) return;
 
-            JSONObject root = toJson(snapshot);
+            JSONObject root = toJson(snapshot, teamsSignature);
             try (OutputStream out = new FileOutputStream(tmp)) {
                 out.write(root.toString().getBytes(StandardCharsets.UTF_8));
             }
@@ -74,6 +82,15 @@ public final class MatchCache {
     }
 
     public MatchesSnapshot load(LocalDate date) {
+        return load(date, null);
+    }
+
+    /**
+     * Carga la caché de una fecha. Si se pide una firma concreta y la guardada
+     * es distinta, se descarta. Sin firma pedida (o con la guardada vacía) se
+     * acepta, para seguir sirviendo a Ajustes y a las cachés de test.
+     */
+    public MatchesSnapshot load(LocalDate date, String teamsSignature) {
         if (date == null || dir == null) return null;
 
         File file = fileFor(date);
@@ -84,6 +101,12 @@ public final class MatchCache {
                     Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
             JSONObject root = new JSONObject(raw);
             if (root.optInt("version", -1) != VERSION) return null;
+
+            String storedTeams = root.optString("teams", "");
+            if (teamsSignature != null && !storedTeams.isEmpty()
+                    && !storedTeams.equals(teamsSignature)) {
+                return null;
+            }
 
             String storedDate = root.optString("date", "");
             if (!storedDate.isEmpty() && !date.toString().equals(storedDate)) {
@@ -124,10 +147,12 @@ public final class MatchCache {
                 + date.format(DateTimeFormatter.ISO_LOCAL_DATE) + SUFFIX);
     }
 
-    private static JSONObject toJson(MatchesSnapshot snapshot) throws Exception {
+    private static JSONObject toJson(MatchesSnapshot snapshot,
+                                     String teamsSignature) throws Exception {
         JSONObject root = new JSONObject();
         root.put("version", VERSION);
         root.put("date", snapshot.date.toString());
+        root.put("teams", teamsSignature == null ? "" : teamsSignature);
         root.put("fetchedAt", snapshot.fetchedAt);
         root.put("stale", snapshot.stale);
 
@@ -167,6 +192,9 @@ public final class MatchCache {
         json.put("homeScore", finite(match.homeScore, -1));
         json.put("awayScore", finite(match.awayScore, -1));
         json.put("trackedIsHome", match.trackedIsHome);
+        json.put("trackedId", match.trackedId);
+        json.put("homeTracked", match.homeTracked);
+        json.put("awayTracked", match.awayTracked);
         json.put("trackedName", safe(match.trackedName));
         json.put("opponentName", safe(match.opponentName));
         return json;
@@ -196,6 +224,9 @@ public final class MatchCache {
         match.homeScore = json.optDouble("homeScore", 0);
         match.awayScore = json.optDouble("awayScore", 0);
         match.trackedIsHome = json.optBoolean("trackedIsHome", false);
+        match.trackedId = json.optLong("trackedId", 0);
+        match.homeTracked = json.optBoolean("homeTracked", false);
+        match.awayTracked = json.optBoolean("awayTracked", false);
         match.trackedName = json.optString("trackedName", "");
         match.opponentName = json.optString("opponentName", "");
         return match;

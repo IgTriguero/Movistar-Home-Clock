@@ -10,6 +10,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -17,6 +18,7 @@ import java.util.Set;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class MatchesClientParserTest {
@@ -101,6 +103,93 @@ public class MatchesClientParserTest {
         assertFalse(match.timeTbd);
         assertEquals(OffsetDateTime.parse(startTime).toInstant().toEpochMilli(),
                 match.startMillis);
+    }
+
+    @Test
+    public void dynamicTrackedIdsOnlyProcessMatchingGames() throws Exception {
+        JSONArray games = fixture().getJSONArray("games");
+        Set<Long> tracked = new HashSet<>(Arrays.asList(131L, 204L));
+
+        List<Match> matches = MatchesClient.parseGames(games, tracked);
+
+        assertEquals(2, matches.size());
+        assertNotNull(find(matches, 1002));
+        assertNotNull(find(matches, 1003));
+        assertNull(find(matches, 1001));
+        assertNull(find(matches, 1004));
+    }
+
+    @Test
+    public void untrackedGameIsDiscarded() throws Exception {
+        LocalDate date = LocalDate.of(2026, 11, 12);
+        JSONArray games = new JSONArray("[{"
+                + "\"id\":3001,\"sportId\":1,"
+                + "\"competitionDisplayName\":\"LaLiga\","
+                + "\"startTime\":\"2026-11-12T20:45:00+01:00\","
+                + "\"statusGroup\":2,\"statusText\":\"Prog.\","
+                + "\"homeCompetitor\":{\"id\":100,\"name\":\"Otro\",\"score\":-1},"
+                + "\"awayCompetitor\":{\"id\":101,\"name\":\"Rival\",\"score\":-1}"
+                + "}]");
+
+        List<Match> matches = MatchesClient.parseGames(
+                games, new HashSet<>(Arrays.asList(131L, 204L)), date);
+
+        assertTrue(matches.isEmpty());
+    }
+
+    @Test
+    public void bothTrackedTeamsProduceOneRowWithBothFlags() throws Exception {
+        JSONArray games = fixture().getJSONArray("games");
+        Set<Long> tracked = new HashSet<>(Arrays.asList(131L, 174L));
+
+        List<Match> matches = MatchesClient.parseGames(games, tracked);
+
+        assertEquals(1, matches.size());
+        Match match = matches.get(0);
+        assertTrue(match.homeTracked);
+        assertTrue(match.awayTracked);
+        assertEquals(131L, match.trackedId);
+        assertEquals(131L, match.homeId);
+        assertTrue(match.trackedIsHome);
+        assertTrue(match.isTrackedSide(true));
+        assertTrue(match.isTrackedSide(false));
+    }
+
+    @Test
+    public void trackedAwayTeamSetsTrackedIdAndFallbackOrientation() throws Exception {
+        JSONArray games = fixture().getJSONArray("games");
+        Set<Long> tracked = new HashSet<>(Collections.singletonList(5050L));
+
+        List<Match> matches = MatchesClient.parseGames(games, tracked);
+
+        assertEquals(1, matches.size());
+        Match match = matches.get(0);
+        assertFalse(match.homeTracked);
+        assertTrue(match.awayTracked);
+        assertEquals(5050L, match.trackedId);
+        assertEquals("España", match.trackedName);
+        assertFalse(match.trackedIsHome);
+    }
+
+    @Test
+    public void buildUrlNormalizesIdsAndReturnsEmptyWhenThereAreNone() {
+        String url = MatchesClient.buildUrl("12/11/2026", "Europe/Madrid",
+                Arrays.asList(174L, 131L, 131L, -4L, 0L, null));
+
+        assertTrue(url.contains("competitors=131%2C174"));
+
+        assertEquals("", MatchesClient.buildUrl("12/11/2026", "Europe/Madrid",
+                Collections.emptyList()));
+        assertEquals("", MatchesClient.buildUrl("12/11/2026", "Europe/Madrid",
+                Arrays.asList(-1L, 0L, null)));
+    }
+
+    @Test
+    public void fetchWithEmptySelectionReturnsEmptyWithoutNetwork() throws Exception {
+        List<Match> matches = MatchesClient.fetch(
+                LocalDate.of(2026, 11, 12), "Europe/Madrid", Collections.emptyList());
+
+        assertTrue(matches.isEmpty());
     }
 
     private static Set<Long> tracked() {

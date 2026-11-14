@@ -12,10 +12,9 @@ App Android ligera para un **Movistar Home RG3205W** en horizontal. Muestra un r
 - **Primera ciudad por IP al iniciar la app**, sin GPS ni permisos: si ya estaba guardada se mueve al primer puesto y, si es nueva, se añade delante sin borrar ninguna. También hay un botón manual **Usar mi ubicación**.
 - **Buscador de ciudades y pueblos**; no hay que escribir latitud ni longitud.
 - **Modo noche** configurable: atenúa la pantalla en una franja horaria.
-- **Panel de partidos** con escudos, marcador y estado:
-  - Fútbol: Real Madrid, Rayo Vallecano, España y Liverpool.
-  - Baloncesto: Real Madrid (ACB y Euroliga).
-  - Celta Femenino (As Celtas) vía RFEF y la web del Celta.
+- **Panel de partidos** con los equipos que elijas (hasta 10), escudos, marcador y estado. Por defecto: Real Madrid, Rayo, España y Liverpool de fútbol, Real Madrid de baloncesto y As Celtas.
+- **Buscador de equipos** en 365Scores para añadir cualquier club o selección de fútbol/baloncesto, con alta manual por ID. As Celtas se ofrece como sugerencia local porque no está en 365Scores.
+- **Equipos en pausa** sin borrarlos y lista vacía válida: si no sigues a nadie, el panel se oculta y no se consultan fuentes.
 - **Detalle de partido** al tocar una fila: goles, tarjetas, cambios, alineaciones, estadísticas, estadio, árbitro y dónde ver. RFEF y Celta muestran el resumen básico y un enlace a su fuente.
 - **Dónde verlo en España**: emisoras de 365Scores cuando están disponibles, guía por competición 2026/27 y búsqueda directa, con aviso de que los derechos cambian.
 - **Minuto real de la API**, sin reloj local inventado: `34'`, `90+4'`, `4C 00:03`.
@@ -67,6 +66,7 @@ Sí. El wrapper fija Gradle 8.5 y permite que cualquiera compile con `./gradlew`
 ## Ajustes
 
 - **Ciudades**: lista editable (hasta 8). Se añaden con el buscador, se seleccionan tocando una fila y se reordenan o eliminan con los botones. La primera es la ciudad actual y se actualiza al abrir la app; **Usar mi ubicación** fuerza la detección por IP. La seleccionada se conserva entre arranques.
+- **Equipos**: lista editable (hasta 10). Se añaden con el buscador de 365Scores o por ID, se activan/desactivan con **Seguir** sin borrarlos y se eliminan con ✕ y confirmación. As Celtas se ofrece como sugerencia local y controla si se consultan RFEF y Celta. **Añadir equipos por defecto** recupera solo los que falten. Los cambios se guardan al instante y el panel se refresca al volver.
 - **Partidos**: mostrar u ocultar el panel.
 - **Noche**: activar y definir inicio/fin (`HH:mm`). La franja puede cruzar medianoche. Si inicio y fin coinciden, no se aplica.
 - **Diagnóstico**: última actualización, latencia, estado y salud de cada fuente, antigüedad de la caché, contadores de escudos, PSS, última salida del proceso y fuentes caídas; botones **Actualizar ahora** y **Borrar caché de escudos**. El resumen se guarda en `no_backup/diagnostics.json` y se conserva tras reiniciar la app.
@@ -105,7 +105,7 @@ Guarda una copia de `keys/homeclock-release.jks` y sus contraseñas. Sin esa cla
 
 ## Calidad
 
-- **483 tests** unitarios con JUnit y fixtures de las fuentes.
+- **587 tests** unitarios con JUnit y fixtures de las fuentes.
 - **Contrato diario** contra 365Scores, Open-Meteo, RFEF y Celta.
 - **Soak test** de 72 h: `tools/soak.sh` muestrea PID, PSS, actividad en primer plano y crashes/ANRs. Ver [`docs/SOAK.md`](docs/SOAK.md).
 - **Lint** sin errores; solo quedan avisos menores de rendimiento/estilo (pesos anidados, carpeta de icono adaptativo y plurales).
@@ -123,6 +123,8 @@ app/src/main/java/com/itriguero/homeclock/
   WeatherPager / PageDots    paginador táctil del bloque de tiempo
   MatchRepository.java       orquestación, merge y caché de partidos
   MatchesClient / *Source    fuentes 365Scores, RFEF y Celta
+  TrackedTeam / *List        equipos seguidos, selección y codec JSON
+  TeamSearchClient           búsqueda de equipos en 365Scores
   MatchDetail* / Dialog      detalle, caché y modal de partido
   BroadcastCatalog           guía de TV por competición y búsqueda
   MatchCache.java            caché JSON por fecha
@@ -150,6 +152,8 @@ Son APIs y páginas públicas no oficiales: pueden cambiar sin aviso. La app no 
 
 El tiempo envía a Open-Meteo las coordenadas de las ciudades guardadas (hasta 8); no se envía la ubicación del dispositivo.
 
+**Búsqueda de equipos.** Al buscar un equipo se envía a 365Scores el texto escrito (`/web/search/`). No se envía la lista de equipos, ni identificadores, ni datos del dispositivo. La lista se guarda solo en el dispositivo (`teams_v1`) y, al pedir partidos, se envían a 365Scores los IDs de los equipos activos como parámetro `competitors`.
+
 El diagnóstico se guarda en `no_backup/diagnostics.json` (fuera de backup): versiones, sesiones, estados de fuentes, latencias, PSS y motivos de salida. No incluye IP, coordenadas, nombres de ciudades ni cuerpos de respuesta.
 
 ## Ideas y pendientes
@@ -158,7 +162,8 @@ El backlog vivo, con la viabilidad técnica de cada propuesta, está en [`docs/B
 
 ## Limitaciones
 
-- Los equipos seguidos están fijados en código; la configuración desde la app queda para una versión posterior.
+- La búsqueda de equipos usa el endpoint público no oficial de 365Scores; si cambia, se puede seguir añadiendo por ID y As Celtas sigue disponible desde la entrada local.
+- As Celtas no existe en 365Scores: depende de RFEF y de la web del Celta. Si ambas fallan, se conserva el último calendario cacheado.
 - El detalle completo depende de 365Scores. RFEF y Celta solo ofrecen resumen y enlace a su fuente.
 - La guía de TV es orientativa (temporada 2026/27) y los derechos pueden cambiar por jornada; confirma siempre en la plataforma.
 - La detección por IP es aproximada a nivel de ciudad/proveedor y puede fallar con VPN, CGNAT, IP móvil o redes corporativas. La ciudad se puede cambiar a mano.

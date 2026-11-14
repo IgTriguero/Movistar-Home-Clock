@@ -14,13 +14,14 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Cliente del API público (no oficial) de 365Scores.
@@ -33,19 +34,53 @@ public final class MatchesClient {
     private static final String BASE = "https://webws.365scores.com/web/games/";
     private static final ZoneId MADRID = ZoneId.of("Europe/Madrid");
 
-    // Real Madrid, Rayo, Liverpool, España masculino y Real Madrid Baloncesto.
-    private static final String TRACKED_IDS_CSV = "131,174,108,5050,204";
-    private static final Set<Long> TRACKED_IDS = new HashSet<>(
-            Arrays.asList(131L, 174L, 108L, 5050L, 204L));
-
     private MatchesClient() {
     }
 
+    /** Sin selección explícita se usan los equipos por defecto de la app. */
     public static List<Match> fetch(LocalDate date, String timezoneId) throws Exception {
+        return fetch(date, timezoneId, defaultTrackedIds());
+    }
+
+    /**
+     * Descarga los partidos de los IDs indicados. Una selección vacía no
+     * construye URL ni toca la red.
+     */
+    public static List<Match> fetch(LocalDate date, String timezoneId,
+                                    Collection<Long> trackedIds) throws Exception {
+        List<Long> ids = normalizeIds(trackedIds);
+        if (ids.isEmpty()) return new ArrayList<>();
+
         String d = date.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
-        List<Match> all = fetchGames(d, timezoneId, date);
+        List<Match> all = fetchGames(d, timezoneId, date, ids);
         sortMatches(all);
         return all;
+    }
+
+    private static List<Long> defaultTrackedIds() {
+        List<Long> ids = new ArrayList<>();
+        for (long id : TrackedTeam.default365Ids()) ids.add(id);
+        return ids;
+    }
+
+    /** Solo IDs positivos, sin duplicados y en orden ascendente. */
+    static List<Long> normalizeIds(Collection<Long> ids) {
+        TreeSet<Long> sorted = new TreeSet<>();
+        if (ids != null) {
+            for (Long id : ids) {
+                if (id != null && id > 0) sorted.add(id);
+            }
+        }
+        return new ArrayList<>(sorted);
+    }
+
+    private static String csv(List<Long> ids) {
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < ids.size(); i++) {
+            if (i > 0) result.append(',');
+            result.append(ids.get(i));
+        }
+        return result.toString();
     }
 
     public static void sortMatches(List<Match> list) {
@@ -100,12 +135,15 @@ public final class MatchesClient {
      * Construye la URL sin android.net.Uri para que el cliente pueda probarse
      * en la JVM (el contrato diario de fuentes) además de en el dispositivo.
      */
-    private static String buildUrl(String date, String timezoneId) {
+    static String buildUrl(String date, String timezoneId,
+                           Collection<Long> ids) {
+        List<Long> normalized = normalizeIds(ids);
+        if (normalized.isEmpty()) return "";
         try {
             return BASE + "?appTypeId=5&langId=14"
                     + "&timezoneName=" + URLEncoder.encode(timezoneId, "UTF-8")
                     + "&userCountryId=225"
-                    + "&competitors=" + URLEncoder.encode(TRACKED_IDS_CSV, "UTF-8")
+                    + "&competitors=" + URLEncoder.encode(csv(normalized), "UTF-8")
                     + "&startDate=" + URLEncoder.encode(date, "UTF-8")
                     + "&endDate=" + URLEncoder.encode(date, "UTF-8");
         } catch (UnsupportedEncodingException e) {
@@ -114,8 +152,10 @@ public final class MatchesClient {
     }
 
     private static List<Match> fetchGames(String date, String timezoneId,
-                                          LocalDate localDate) throws Exception {
-        String url = buildUrl(date, timezoneId);
+                                          LocalDate localDate,
+                                          Collection<Long> ids) throws Exception {
+        String url = buildUrl(date, timezoneId, ids);
+        Set<Long> trackedIds = new HashSet<>(ids);
 
         HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
         conn.setConnectTimeout(10000);
@@ -134,7 +174,7 @@ public final class MatchesClient {
             }
 
             JSONObject root = new JSONObject(sb.toString());
-            return parseGames(root.optJSONArray("games"), TRACKED_IDS,
+            return parseGames(root.optJSONArray("games"), trackedIds,
                     localDate, zoneOrMadrid(timezoneId));
         } finally {
             conn.disconnect();
@@ -227,6 +267,9 @@ public final class MatchesClient {
             m.trackedIsHome = homeTracked;
             m.trackedName = homeTracked ? m.homeName : m.awayName;
             m.opponentName = homeTracked ? m.awayName : m.homeName;
+            m.trackedId = homeTracked ? homeId : awayId;
+            m.homeTracked = homeTracked;
+            m.awayTracked = awayTracked;
 
             result.add(m);
         }

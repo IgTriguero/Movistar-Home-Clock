@@ -24,6 +24,11 @@ final class CeltaSource implements MatchSource {
     }
 
     @Override
+    public boolean isEnabledFor(TeamSelection selection) {
+        return selection != null && selection.asCeltasEnabled();
+    }
+
+    @Override
     public SourceResult<List<Match>> fetch(LocalDate date) {
         long start = System.nanoTime();
         try {

@@ -62,4 +62,50 @@ public class MatchTest {
         assertFalse(match.isPostponed());
         assertTrue(match.isCancelled());
     }
+
+    @Test
+    public void newFlagsMarkOnlyTrackedSides() {
+        Match match = new Match();
+        match.trackedIsHome = false;
+        match.homeTracked = true;
+        match.awayTracked = false;
+
+        assertTrue(match.isTrackedSide(true));
+        assertFalse(match.isTrackedSide(false));
+    }
+
+    @Test
+    public void bothSidesTrackedMarksBoth() {
+        Match match = new Match();
+        match.trackedIsHome = false;
+        match.homeTracked = true;
+        match.awayTracked = true;
+
+        assertTrue(match.isTrackedSide(true));
+        assertTrue(match.isTrackedSide(false));
+    }
+
+    @Test
+    public void legacyTrackedIsHomeStillWorksWithoutNewFlags() {
+        Match home = new Match();
+        home.trackedIsHome = true;
+        assertTrue(home.isTrackedSide(true));
+        assertFalse(home.isTrackedSide(false));
+
+        Match away = new Match();
+        away.trackedIsHome = false;
+        assertFalse(away.isTrackedSide(true));
+        assertTrue(away.isTrackedSide(false));
+    }
+
+    @Test
+    public void newFlagWinsOverLegacyFallback() {
+        Match match = new Match();
+        match.trackedIsHome = true;
+        match.homeTracked = false;
+        match.awayTracked = true;
+
+        assertFalse(match.isTrackedSide(true));
+        assertTrue(match.isTrackedSide(false));
+    }
 }

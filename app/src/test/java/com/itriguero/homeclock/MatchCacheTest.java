@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.LocalDate;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -60,6 +61,9 @@ public class MatchCacheTest {
         live.homeScore = 2;
         live.awayScore = 1;
         live.trackedIsHome = true;
+        live.trackedId = 131L;
+        live.homeTracked = true;
+        live.awayTracked = false;
         live.trackedName = "Real Madrid";
         live.opponentName = "Rayo Vallecano";
 
@@ -79,6 +83,9 @@ public class MatchCacheTest {
         postponed.homeScore = -1;
         postponed.awayScore = -1;
         postponed.trackedIsHome = false;
+        postponed.trackedId = -1L;
+        postponed.homeTracked = false;
+        postponed.awayTracked = true;
         postponed.trackedName = "As Celtas";
         postponed.opponentName = "Rival";
 
@@ -122,6 +129,9 @@ public class MatchCacheTest {
         assertEquals(2.0, loadedLive.homeScore, 0.0);
         assertEquals(1.0, loadedLive.awayScore, 0.0);
         assertTrue(loadedLive.trackedIsHome);
+        assertEquals(131L, loadedLive.trackedId);
+        assertTrue(loadedLive.homeTracked);
+        assertFalse(loadedLive.awayTracked);
         assertEquals("Real Madrid", loadedLive.trackedName);
         assertEquals("Rayo Vallecano", loadedLive.opponentName);
 
@@ -132,6 +142,9 @@ public class MatchCacheTest {
         assertTrue(loadedPostponed.timeTbd);
         assertEquals(-1.0, loadedPostponed.homeScore, 0.0);
         assertEquals(-1.0, loadedPostponed.awayScore, 0.0);
+        assertEquals(-1L, loadedPostponed.trackedId);
+        assertFalse(loadedPostponed.homeTracked);
+        assertTrue(loadedPostponed.awayTracked);
         assertNull(loadedPostponed.homeLogoUrl);
         assertNull(loadedPostponed.awayLogoUrl);
 
@@ -155,11 +168,12 @@ public class MatchCacheTest {
     }
 
     @Test
-    public void loadsOldCacheWithoutCacheFieldsWithDefaults() throws Exception {
+    public void loadsCacheWithoutNewTrackingFieldsWithDefaults() throws Exception {
         LocalDate date = LocalDate.of(2026, 11, 12);
         File file = new File(dir, "matches_" + date + ".json");
-        String json = "{\"version\":1,\"date\":\"2026-11-12\",\"fetchedAt\":99,"
-                + "\"matches\":[],\"sources\":[{\"sourceId\":\"365scores\","
+        String json = "{\"version\":2,\"date\":\"2026-11-12\",\"fetchedAt\":99,"
+                + "\"matches\":[{\"id\":5,\"trackedIsHome\":true}],"
+                + "\"sources\":[{\"sourceId\":\"365scores\","
                 + "\"state\":\"OK\",\"fetchedAt\":1,\"durationMs\":2}]}";
         Files.write(file.toPath(), json.getBytes(StandardCharsets.UTF_8));
 
@@ -170,6 +184,42 @@ public class MatchCacheTest {
         assertNotNull(status);
         assertFalse(status.fromCache);
         assertEquals(0, status.matchCount);
+
+        Match match = loaded.matches.get(0);
+        assertTrue(match.trackedIsHome);
+        assertEquals(0L, match.trackedId);
+        assertFalse(match.homeTracked);
+        assertFalse(match.awayTracked);
+    }
+
+    @Test
+    public void loadReturnsNullForVersionOne() throws Exception {
+        LocalDate date = LocalDate.of(2026, 11, 12);
+        File file = new File(dir, "matches_" + date + ".json");
+        Files.write(file.toPath(),
+                ("{\"version\":1,\"date\":\"2026-11-12\",\"fetchedAt\":99,"
+                        + "\"matches\":[]}").getBytes(StandardCharsets.UTF_8));
+
+        assertNull(cache.load(date));
+    }
+
+    @Test
+    public void signatureMustMatchWhenBothAreNonEmpty() {
+        LocalDate date = LocalDate.of(2026, 11, 12);
+        cache.save(snapshot(date), "a=b");
+
+        assertNotNull(cache.load(date, "a=b"));
+        assertNull(cache.load(date, "other"));
+        // Sin firma pedida se sigue sirviendo la caché (Ajustes, tests).
+        assertNotNull(cache.load(date));
+    }
+
+    @Test
+    public void emptyStoredSignatureIsAcceptedForAnyRequest() {
+        LocalDate date = LocalDate.of(2026, 11, 12);
+        cache.save(snapshot(date));
+
+        assertNotNull(cache.load(date, "cualquier-firma"));
     }
 
     @Test
@@ -194,6 +244,16 @@ public class MatchCacheTest {
         Files.write(file.toPath(), "{not-json".getBytes(StandardCharsets.UTF_8));
 
         assertNull(cache.load(date));
+    }
+
+    private static MatchesSnapshot snapshot(LocalDate date) {
+        Match match = new Match();
+        match.id = 1L;
+        match.sourceId = "365scores";
+        match.sport = "Fútbol";
+        match.status = MatchStatus.SCHEDULED;
+        return new MatchesSnapshot(date, Collections.singletonList(match),
+                Collections.emptyMap(), 123L, false);
     }
 
     private static void deleteRecursively(File file) {

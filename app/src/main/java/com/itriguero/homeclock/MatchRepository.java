@@ -44,28 +44,85 @@ public final class MatchRepository {
     private final MatchCache cache;
     private final ExecutorService sourceExecutor;
     private final Context logoContext;
+    private final TeamSelectionHolder teamSelection;
 
     public MatchRepository(Context context) {
-        this(new ArrayList<>(java.util.Arrays.asList(
-                        new Scores365Source(),
-                        new RfefSource(context),
-                        new CeltaSource(context))),
+        this(context, defaultHolder(context));
+    }
+
+    private MatchRepository(Context context, TeamSelectionHolder holder) {
+        this(defaultSources(context, holder),
                 new MatchCache(context),
                 Executors.newFixedThreadPool(3),
-                context);
+                context,
+                holder);
+    }
+
+    private static TeamSelectionHolder defaultHolder(Context context) {
+        TeamSelectionHolder holder = new TeamSelectionHolder();
+        holder.set(new Prefs(context).loadTeams());
+        return holder;
+    }
+
+    private static List<MatchSource> defaultSources(Context context,
+                                                    TeamSelectionHolder holder) {
+        return new ArrayList<>(java.util.Arrays.asList(
+                new Scores365Source(holder),
+                new RfefSource(context),
+                new CeltaSource(context)));
+    }
+
+    /** Selección vacía: las fuentes de prueba siguen activas por defecto. */
+    MatchRepository(List<MatchSource> sources, MatchCache cache,
+                    ExecutorService sourceExecutor, Context logoContext) {
+        this(sources, cache, sourceExecutor, logoContext, new TeamSelectionHolder());
     }
 
     MatchRepository(List<MatchSource> sources, MatchCache cache,
-                    ExecutorService sourceExecutor, Context logoContext) {
+                    ExecutorService sourceExecutor, Context logoContext,
+                    TeamSelectionHolder teamSelection) {
         this.sources = sources == null
                 ? Collections.emptyList() : new ArrayList<>(sources);
         this.cache = cache;
         this.sourceExecutor = sourceExecutor;
         this.logoContext = logoContext;
+        this.teamSelection = teamSelection == null
+                ? new TeamSelectionHolder() : teamSelection;
+    }
+
+    void setTeams(TrackedTeamList teams) {
+        teamSelection.set(teams);
+    }
+
+    /** IDs de las fuentes que aplican a la selección actual, en su orden. */
+    List<String> activeSourceIds() {
+        TeamSelection selection = teamSelection.get();
+        List<String> result = new ArrayList<>();
+        for (MatchSource source : sources) {
+            if (source == null || source.id() == null) continue;
+            if (!source.isEnabledFor(selection)) continue;
+            result.add(source.id());
+        }
+        return result;
     }
 
     public MatchesSnapshot fetchBlocking(LocalDate date) {
-        MatchesSnapshot cached = cache == null ? null : cache.load(date);
+        TeamSelection selection = teamSelection.get();
+        String signature = selection.signature();
+
+        List<MatchSource> activeSources = new ArrayList<>();
+        for (MatchSource source : sources) {
+            if (source == null || source.id() == null) continue;
+            if (source.isEnabledFor(selection)) activeSources.add(source);
+        }
+
+        // Sin ninguna fuente aplicable no se lee ni se escribe la caché.
+        if (activeSources.isEmpty()) {
+            return new MatchesSnapshot(date, Collections.emptyList(),
+                    Collections.emptyMap(), System.currentTimeMillis(), false);
+        }
+
+        MatchesSnapshot cached = cache == null ? null : cache.load(date, signature);
 
         long deadline = System.nanoTime()
                 + TimeUnit.SECONDS.toNanos(GLOBAL_TIMEOUT_SECONDS);
@@ -73,9 +130,7 @@ public final class MatchRepository {
         Map<String, Long> startedAt = new HashMap<>();
         Map<String, SourceStatus> statuses = new LinkedHashMap<>();
 
-        for (MatchSource source : sources) {
-            if (source == null || source.id() == null) continue;
-
+        for (MatchSource source : activeSources) {
             String id = source.id();
             long start = System.nanoTime();
             startedAt.put(id, start);
@@ -211,7 +266,7 @@ public final class MatchRepository {
             }
         }
 
-        if (logoContext != null) {
+        if (selection.asCeltasEnabled() && logoContext != null) {
             fillLogosWithinBudget(merged, deadline);
         }
 
@@ -221,7 +276,7 @@ public final class MatchRepository {
                 date, merged, statuses, System.currentTimeMillis(), usedCached);
         // Solo se pisa la caché con un ciclo sin errores; un fallo parcial no
         // debe convertir una lista completa anterior en una lista incompleta.
-        if (cache != null && !hasErrors) cache.save(snapshot);
+        if (cache != null && !hasErrors) cache.save(snapshot, signature);
         return snapshot;
     }
 
@@ -345,6 +400,7 @@ public final class MatchRepository {
             Match winner = better(match, current) ? match : current;
             Match loser = winner == match ? current : match;
             fillMissingLogos(winner, loser);
+            preserveTracking(winner, loser);
             clusters.set(index, winner);
         }
 
@@ -373,6 +429,14 @@ public final class MatchRepository {
         boolean samePair = (aHome.equals(bHome) && aAway.equals(bAway))
                 || (aHome.equals(bAway) && aAway.equals(bHome));
         if (!samePair) return false;
+
+        // Fútbol y baloncesto pueden compartir nombres y hora sin ser el mismo
+        // partido. Solo se bloquea la fusión cuando ambas fuentes dan deporte.
+        String aSport = normalizeName(a.sport);
+        String bSport = normalizeName(b.sport);
+        if (!aSport.isEmpty() && !bSport.isEmpty() && !aSport.equals(bSport)) {
+            return false;
+        }
 
         if (a.timeTbd || b.timeTbd) {
             return sameLocalDate(a.startMillis, b.startMillis);
@@ -432,6 +496,32 @@ public final class MatchRepository {
         if (isBlank(winner.awayLogoUrl) && !isBlank(loserAwayLogo)) {
             winner.awayLogoUrl = loserAwayLogo;
         }
+    }
+
+    /**
+     * Conserva los equipos seguidos al fusionar. Los flags son relativos a la
+     * orientación de cada partido, así que se traducen si los nombres vienen
+     * cambiados. Los campos antiguos solo se copian si el ganador no tenía
+     * ninguna marca nueva.
+     */
+    private static void preserveTracking(Match winner, Match loser) {
+        boolean swapped = namesSwapped(winner, loser);
+        boolean loserTracksWinnerHome = swapped
+                ? loser.awayTracked : loser.homeTracked;
+        boolean loserTracksWinnerAway = swapped
+                ? loser.homeTracked : loser.awayTracked;
+        boolean winnerHadTracked = winner.homeTracked || winner.awayTracked;
+
+        if (winner.trackedId == 0) winner.trackedId = loser.trackedId;
+        winner.homeTracked = winner.homeTracked || loserTracksWinnerHome;
+        winner.awayTracked = winner.awayTracked || loserTracksWinnerAway;
+
+        if (winnerHadTracked || (!loser.homeTracked && !loser.awayTracked)) {
+            return;
+        }
+        winner.trackedIsHome = swapped ? !loser.trackedIsHome : loser.trackedIsHome;
+        winner.trackedName = loser.trackedName;
+        winner.opponentName = loser.opponentName;
     }
 
     /**

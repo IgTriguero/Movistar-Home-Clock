@@ -21,8 +21,21 @@ public class Match {
     public double homeScore;
     public double awayScore;
     public boolean trackedIsHome;
+    public long trackedId;
+    public boolean homeTracked;
+    public boolean awayTracked;
     public String trackedName;
     public String opponentName;
+
+    /**
+     * Indica si el lado local/visitante es uno de los equipos seguidos. Los
+     * partidos antiguos solo traen {@code trackedIsHome}, así que se usa como
+     * respaldo cuando no hay flags nuevos.
+     */
+    public boolean isTrackedSide(boolean home) {
+        if (home) return homeTracked || (!awayTracked && trackedIsHome);
+        return awayTracked || (!homeTracked && !awayTracked && !trackedIsHome);
+    }
 
     public boolean isLive() {
         return status.isLive();

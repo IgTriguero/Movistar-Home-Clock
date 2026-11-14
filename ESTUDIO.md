@@ -18,7 +18,7 @@ La app es **standalone**: no hay backend propio, cuenta de usuario ni analítica
 |---|---|
 | App normal, no launcher | El dispositivo se sigue usando con Home 2.0; la app se abre cuando se quiere. |
 | Sin cuentas ni backend | Menos operación y menos datos personales. |
-| Equipos fijados en código | Los equipos seguidos son estables; la configuración desde la app queda para más adelante. |
+| Equipos configurables desde la app | Cualquier equipo de fútbol o baloncesto de 365Scores se puede añadir, pausar o quitar sin tocar código; As Celtas se mantiene como entrada curada. |
 | Solo horizontal | El Movistar Home es un panel fijo en horizontal. |
 | Sin AndroidX ni dependencias externas | APK pequeño y build reproducible. |
 
@@ -41,6 +41,7 @@ MainActivity
 
 SettingsActivity
   ├── ciudades (lista editable y Open-Meteo Geocoding)
+  ├── equipos (lista editable, búsqueda 365Scores y alta por ID)
   ├── partidos y modo noche
   └── diagnóstico (Diagnostics + MatchCache + Prefs)
 ```
@@ -48,8 +49,12 @@ SettingsActivity
 | Componente | Responsabilidad |
 |---|---|
 | `MainActivity` | Pantalla principal, ciclo de refresco, render del panel y avisos. |
-| `SettingsActivity` | Ajustes, lista de ciudades y diagnóstico. |
+| `SettingsActivity` | Ajustes, listas de ciudades y equipos, y diagnóstico. |
 | `City` / `CityList` / `CityListCodec` | Modelo, orden, selección y JSON de ciudades (`cities_v2`). |
+| `TrackedTeam` | Equipo seguido inmutable: proveedor, ID, deporte, nombres, país, competición, logo y estado. |
+| `TrackedTeamList` / `TrackedTeamCodec` | Lista ordenada (máximo 10, lista vacía válida), firma de selección y JSON `teams_v1`. |
+| `TeamSelection` / `TeamSelectionHolder` | Selección inmutable de equipos activos compartida con las fuentes. |
+| `TeamSearchClient` | Búsqueda de equipos en 365Scores, lookup por ID y sugerencia curada de As Celtas. |
 | `IpLocationClient` | Detección de ciudad por IP con `ipwho.is`, normalización y errores tipados. |
 | `WeatherRepository` | Fetch multi-ciudad, merge de caché v2 y fallback offline. |
 | `WeatherPager` / `PageDotsView` | Paginador táctil del tiempo y puntos de posición. |
@@ -59,7 +64,7 @@ SettingsActivity
 | `Scores365Source` | Fútbol y baloncesto vía 365Scores. |
 | `RfefSource` | As Celtas en Liga (RFEF). |
 | `CeltaSource` | As Celtas en Copa de la Reina (web del Celta). |
-| `MatchCache` | Un JSON por fecha, escritura atómica y lectura tolerante. |
+| `MatchCache` | Un JSON por fecha (`version: 2`), firma de equipos, escritura atómica y lectura tolerante. |
 | `MatchesSnapshot` | Partidos + estado por fuente + marca de stale. |
 | `Diagnostics` | Estado vivo: último resultado, salud por fuente y del tiempo. |
 | `DiagnosticsStore` | Persiste el resumen en `no_backup/diagnostics.json`, PSS, salidas, sesiones y debounce. |
@@ -81,13 +86,14 @@ SettingsActivity
 | Open-Meteo Geocoding | Buscador de ciudades | JSON |
 | ipwho.is | Ciudad estimada por IP (primera ciudad / botón manual) | JSON |
 
-- 365Scores se consulta por `competitors` (IDs `131,174,108,5050,204`), `langId=14` y zona `Europe/Madrid`.
+- 365Scores se consulta por `competitors` con los IDs de los equipos activos, `langId=14` y zona `Europe/Madrid`. La búsqueda de equipos usa `GET /web/search/?query=...` y el lookup por ID `GET /web/competitors/?competitors=...`.
+- As Celtas no existe en 365Scores: es una entrada curada (`as-celtas`, id `-1`) que solo activa RFEF y Celta. Si no está en la lista, esas fuentes no se consultan.
 - RFEF y Celta guardan un calendario compacto en el dispositivo para no repetir peticiones.
 - No se usan claves de API. Las fuentes son públicas pero no oficiales; pueden cambiar sin aviso.
 
 ## 4. Modelo y normalización
 
-`Match` contiene equipos, competición, deporte, hora, estado, marcador, escudos y el equipo seguido. `MatchStatus` normaliza los estados:
+`Match` contiene equipos, competición, deporte, hora, estado, marcador, escudos y el equipo seguido (`trackedId`, `trackedIsHome`, `homeTracked`, `awayTracked`). `MatchStatus` normaliza los estados:
 
 ```text
 UNKNOWN · SCHEDULED · LIVE · LIVE_APPROX · FINISHED · POSTPONED · CANCELLED
@@ -108,7 +114,7 @@ Dos partidos son el mismo si coincide la pareja de equipos (en cualquier orden) 
 - ambos tienen hora y están a **≤ 2 horas**, o
 - alguno es `timeTbd` y caen en el **mismo día local**.
 
-Sin nombres se compara `id + fuente`. En caso de duplicado se prioriza el estado en vivo, el marcador conocido y la fuente (`365Scores > Celta > RFEF`). Los escudos que falten se completan desde el duplicado.
+Sin nombres se compara `id + fuente`. Si ambos partidos traen deporte y no coincide, no se fusionan (fútbol y baloncesto pueden compartir nombres y hora). En caso de duplicado se prioriza el estado en vivo, el marcador conocido y la fuente (`365Scores > Celta > RFEF`). Los escudos que falten se completan desde el duplicado y los flags de equipo seguido se traducen si los nombres vienen invertidos.
 
 ### Reloj en vivo
 
@@ -122,6 +128,7 @@ Sin nombres se compara `id + fuente`. En caso de duplicado se prioriza el estado
 `MatchRepository` ejecuta las fuentes en un pool de 3 hilos con un presupuesto global de **12 s**.
 
 - Si una fuente falla, se conservan los partidos de las demás.
+- Solo se ejecutan las fuentes habilitadas por la selección: 365Scores si hay IDs activos y RFEF/Celta si As Celtas está activo. Sin fuentes activas se devuelve un snapshot vacío sin leer caché ni tocar la red.
 - Si una fuente falla pero hay caché de esa fuente, se reutilizan sus partidos y se marca `fromCache`.
 - Si fallan todas, se devuelve el último snapshot con `stale=true`.
 - Solo se sobrescribe la caché cuando el ciclo termina sin errores.
@@ -129,7 +136,7 @@ Sin nombres se compara `id + fuente`. En caso de duplicado se prioriza el estado
 - `Diagnostics` guarda en memoria el último snapshot, la salud por fuente/tiempo y notifica a `DiagnosticsStore`.
 - `DiagnosticsStore` escribe un resumen JSON versionado en `no_backup/diagnostics.json` con debounce (20 s, máximo 60 s), PSS (`Debug.MemoryInfo`), motivo de la última salida (`ApplicationExitInfo` en API 30+) y contadores. Ajustes lo usa antes de caer a `MatchCache`/`Prefs`.
 
-La caché de partidos es un JSON por fecha en `filesDir` (`matches_YYYY-MM-DD.json`) con escritura atómica (`.tmp` + rename). La caché de tiempo está en `SharedPreferences` y se invalida al cambiar de ciudad.
+La caché de partidos es un JSON por fecha en `filesDir` (`matches_YYYY-MM-DD.json`) con escritura atómica (`.tmp` + rename). La versión 2 guarda la firma de equipos activos (`teams`): si la lista cambia, la caché de esa fecha se descarta para no resucitar partidos de equipos borrados. La lectura sin firma (diagnóstico y tests) sigue aceptando cachés antiguas. La caché de tiempo está en `SharedPreferences` y se invalida al cambiar de ciudad.
 
 ## 6. Interfaz
 
@@ -174,6 +181,7 @@ Cada 5 minutos se aplica un desplazamiento de hasta ±4 dp siguiendo un anillo d
 `SettingsActivity` incluye:
 
 - **Ciudades**: lista editable (máximo 8) con buscador de Open-Meteo. Se añaden, seleccionan, reordenan y eliminan; la primera es la ciudad actual y se actualiza al abrir la app. **Usar mi ubicación** lanza la detección por IP. La selección y la lista se guardan al instante. La búsqueda corre en background y descarta respuestas obsoletas.
+- **Equipos**: lista editable (máximo 10) con logo, deporte, competición y país. Se añaden con el buscador de 365Scores (debounce de 350 ms, agrupados por deporte, sugerencia local de As Celtas) o por ID. El checkbox **Seguir** activa/desactiva sin borrar; ✕ elimina con confirmación. **Añadir equipos por defecto** recupera solo los ausentes. La lista vacía es válida: oculta el panel y no consulta fuentes. Los cambios se guardan al instante en `teams_v1`.
 - **Partidos**: visibilidad del panel.
 - **Noche**: activación y franja `HH:mm` con validación.
 - **Diagnóstico**: última actualización, latencia, estado y salud por fuente, caché, contadores de escudos, resumen persistido (sesión, PSS, última salida, fuentes caídas), **Actualizar ahora** y **Borrar caché de escudos**.
@@ -192,7 +200,7 @@ Cada 5 minutos se aplica un desplazamiento de hasta ±4 dp siguiendo un anillo d
 
 ## 9. Calidad
 
-- **483 tests** unitarios: modelo, mapper, tiempo, temporada, kickoff, refresco, caché, repositorio, `SourceResult`, diagnóstico, salud de fuentes, codec/estado persistido, PSS/salidas, pixel shift, caché de escudos, ciudades, caché v2, pager, detección IP, detalle de partido, guía de TV y contrato.
+- **587 tests** unitarios: modelo, mapper, tiempo, temporada, kickoff, refresco, caché, repositorio, `SourceResult`, diagnóstico, salud de fuentes, codec/estado persistido, PSS/salidas, pixel shift, caché de escudos, ciudades, caché v2, pager, detección IP, detalle de partido, guía de TV, equipos seguidos, búsqueda de equipos y contrato.
 - **Contrato diario** con datos reales de 365Scores, Open-Meteo, RFEF y Celta.
 - **Soak test**: `tools/soak.sh` muestrea PID, PSS, actividad en primer plano y crashes/ANRs durante 72 h.
 - **Lint**: 0 errores; quedan avisos menores de rendimiento/estilo.
@@ -200,7 +208,8 @@ Cada 5 minutos se aplica un desplazamiento de hasta ±4 dp siguiendo un anillo d
 
 ## 10. Limitaciones
 
-- Los equipos seguidos están fijados en código; no hay pantalla para añadirlos o quitarlos.
+- La búsqueda de equipos usa el endpoint público no oficial de 365Scores; si cambia, se puede seguir añadiendo por ID y As Celtas sigue disponible desde la entrada local.
+- As Celtas no existe en 365Scores: depende de RFEF y de la web del Celta. Si ambas fallan, se conserva el último calendario cacheado.
 - La detección por IP es aproximada a nivel de ciudad/proveedor y puede fallar con VPN, CGNAT, IP móvil o redes corporativas. La ciudad se puede cambiar a mano.
 - En Android anterior a 11 no hay `ApplicationExitInfo`: el motivo de la última salida puede quedar como “desconocida”. El PSS es una tendencia, no una medida exacta.
 - La app es solo horizontal y no arranca sola tras reinicio o corte de luz.
@@ -217,7 +226,7 @@ El detalle vivo, con notas de viabilidad, está en [`docs/BACKLOG.md`](docs/BACK
 2. ✅ Primera ciudad detectada por IP, con botón manual “Usar mi ubicación”.
 3. ✅ Detalle de partido en un modal (goles, tarjetas, cambios, alineaciones y estadísticas).
 4. ✅ Dónde ver cada partido en España, con guía por competición y búsqueda.
-5. Configuración de equipos desde la app (quitar IDs hardcodeados).
+5. ✅ Configuración de equipos desde la app: búsqueda en 365Scores, alta por ID, pausa/borrado y As Celtas curada.
 6. Fallback de fútbol si 365Scores falla.
 7. ✅ Diagnóstico persistente entre procesos y aviso de fuente caída.
 8. Prueba de 72 h completa y ajuste de consumo si aparece deriva.

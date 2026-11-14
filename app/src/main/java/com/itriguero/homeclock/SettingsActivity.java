@@ -1,15 +1,26 @@
 package com.itriguero.homeclock;
 
+import com.itriguero.homeclock.TeamSearchClient.TeamSearchException;
+
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
+import android.graphics.Bitmap;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.text.Editable;
+import android.text.InputFilter;
+import android.text.InputType;
 import android.text.TextUtils;
+import android.text.TextWatcher;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -22,6 +33,7 @@ import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -39,6 +51,8 @@ public class SettingsActivity extends Activity {
     private static final String[] KNOWN_SOURCES = {
             Scores365Source.ID, RfefSource.ID, CeltaSource.ID};
 
+    private static final long TEAM_SEARCH_DEBOUNCE_MS = 350L;
+
     private Prefs prefs;
 
     private CityList cityList;
@@ -49,6 +63,21 @@ public class SettingsActivity extends Activity {
     private Button searchButton;
     private TextView searchStatus;
     private LinearLayout searchResults;
+
+    private TrackedTeamList teamList;
+    private LinearLayout teamListContainer;
+    private TextView teamListCount;
+    private TextView teamListHint;
+    private TextView teamListStatus;
+    private TextView teamsReadOnly;
+    private Button addDefaultTeamsButton;
+    private EditText teamQuery;
+    private Button teamSearchButton;
+    private TextView teamSearchStatus;
+    private LinearLayout teamSearchResults;
+    private Button addTeamByIdButton;
+    private List<TrackedTeam> currentTeamResults = new ArrayList<>();
+
     private Button useLocationButton;
     private TextView useLocationStatus;
     private ScrollView settingsScroll;
@@ -75,9 +104,14 @@ public class SettingsActivity extends Activity {
     private final ExecutorService searchExecutor = Executors.newSingleThreadExecutor();
     private final ExecutorService updateExecutor = Executors.newSingleThreadExecutor();
     private final ExecutorService locationExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService teamSearchExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService teamLogoExecutor = Executors.newSingleThreadExecutor();
+    private final Handler teamDebounceHandler = new Handler(Looper.getMainLooper());
     private final AtomicBoolean detectingLocation = new AtomicBoolean(false);
+    private Runnable pendingTeamSearch;
     private int searchToken;
     private int locationToken;
+    private int teamSearchToken;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -93,6 +127,17 @@ public class SettingsActivity extends Activity {
         searchButton = findViewById(R.id.searchButton);
         searchStatus = findViewById(R.id.searchStatus);
         searchResults = findViewById(R.id.searchResults);
+        teamListContainer = findViewById(R.id.teamList);
+        teamListCount = findViewById(R.id.teamListCount);
+        teamListHint = findViewById(R.id.teamListHint);
+        teamListStatus = findViewById(R.id.teamListStatus);
+        teamsReadOnly = findViewById(R.id.teamsReadOnly);
+        addDefaultTeamsButton = findViewById(R.id.addDefaultTeamsButton);
+        teamQuery = findViewById(R.id.teamQuery);
+        teamSearchButton = findViewById(R.id.teamSearchButton);
+        teamSearchStatus = findViewById(R.id.teamSearchStatus);
+        teamSearchResults = findViewById(R.id.teamSearchResults);
+        addTeamByIdButton = findViewById(R.id.addTeamByIdButton);
         useLocationButton = findViewById(R.id.useLocationButton);
         useLocationStatus = findViewById(R.id.useLocationStatus);
         settingsScroll = findViewById(R.id.settingsScroll);
@@ -118,6 +163,10 @@ public class SettingsActivity extends Activity {
 
         cityList = prefs.loadCities();
         renderCityList();
+
+        teamList = prefs.loadTeams();
+        renderTeamList();
+        applyTeamsReadOnlyControls();
 
         showMatchesInput.setChecked(prefs.showMatches());
         nightEnabledInput.setChecked(prefs.nightEnabled());
@@ -145,6 +194,35 @@ public class SettingsActivity extends Activity {
             }
             return false;
         });
+
+        teamSearchButton.setOnClickListener(v -> {
+            cancelPendingTeamSearch();
+            startTeamSearch(true);
+        });
+        addDefaultTeamsButton.setOnClickListener(v -> addDefaultTeams());
+        addTeamByIdButton.setOnClickListener(v -> showAddTeamByIdDialog());
+        teamQuery.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                cancelPendingTeamSearch();
+                startTeamSearch(true);
+                return true;
+            }
+            return false;
+        });
+        teamQuery.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                onTeamQueryChanged(s.toString());
+            }
+        });
     }
 
     @Override
@@ -153,6 +231,9 @@ public class SettingsActivity extends Activity {
         // MainActivity puede haber cambiado la selección deslizando el reloj.
         cityList = prefs.loadCities();
         renderCityList();
+        teamList = prefs.loadTeams();
+        renderTeamList();
+        applyTeamsReadOnlyControls();
         updateDiagnostics();
     }
 
@@ -160,9 +241,13 @@ public class SettingsActivity extends Activity {
     protected void onDestroy() {
         searchToken++;
         locationToken++;
+        teamSearchToken++;
+        teamDebounceHandler.removeCallbacksAndMessages(null);
         searchExecutor.shutdownNow();
         updateExecutor.shutdownNow();
         locationExecutor.shutdownNow();
+        teamSearchExecutor.shutdownNow();
+        teamLogoExecutor.shutdownNow();
         super.onDestroy();
     }
 
@@ -500,6 +585,603 @@ public class SettingsActivity extends Activity {
             return city.region;
         }
         return city.region + ", " + city.country;
+    }
+
+    // ------------------------------------------------------------------
+    // Equipos
+    // ------------------------------------------------------------------
+
+    private void onTeamQueryChanged(String rawQuery) {
+        if (teamList == null || teamList.isReadOnly()) return;
+        cancelPendingTeamSearch();
+
+        String query = rawQuery == null ? "" : rawQuery.trim();
+        teamSearchToken++;
+        teamSearchButton.setEnabled(true);
+
+        if (query.length() < 2) {
+            currentTeamResults = new ArrayList<>();
+            teamSearchResults.removeAllViews();
+            teamSearchStatus.setText("");
+            teamSearchStatus.setVisibility(View.GONE);
+            return;
+        }
+
+        pendingTeamSearch = () -> {
+            pendingTeamSearch = null;
+            startTeamSearch(false);
+        };
+        teamDebounceHandler.postDelayed(pendingTeamSearch, TEAM_SEARCH_DEBOUNCE_MS);
+    }
+
+    private void cancelPendingTeamSearch() {
+        if (pendingTeamSearch == null) return;
+        teamDebounceHandler.removeCallbacks(pendingTeamSearch);
+        pendingTeamSearch = null;
+    }
+
+    /** Invalida la búsqueda en curso y limpia resultados y estado. */
+    private void clearTeamSearch() {
+        teamSearchToken++;
+        teamSearchButton.setEnabled(teamList == null || !teamList.isReadOnly());
+        currentTeamResults = new ArrayList<>();
+        teamSearchResults.removeAllViews();
+        teamSearchStatus.setText("");
+        teamSearchStatus.setVisibility(View.GONE);
+    }
+
+    private void startTeamSearch(boolean fromButton) {
+        final String query = teamQuery.getText().toString().trim();
+        if (fromButton) hideKeyboard(teamQuery);
+
+        if (query.length() < 2) {
+            clearTeamSearch();
+            teamSearchStatus.setText(R.string.settings_team_search_required);
+            teamSearchStatus.setVisibility(View.VISIBLE);
+            return;
+        }
+
+        final int token = ++teamSearchToken;
+        teamSearchButton.setEnabled(false);
+        teamSearchStatus.setText(R.string.settings_team_searching);
+        teamSearchStatus.setVisibility(View.VISIBLE);
+        teamSearchResults.removeAllViews();
+        currentTeamResults = new ArrayList<>();
+        scrollToTeamResults();
+
+        teamSearchExecutor.execute(() -> {
+            final List<TrackedTeam> curated = TeamSearchClient.curated(query);
+            List<TrackedTeam> remote = Collections.emptyList();
+            TeamSearchException error = null;
+            try {
+                remote = TeamSearchClient.search(query);
+            } catch (TeamSearchException e) {
+                error = e;
+            }
+            final List<TrackedTeam> remoteResult = remote;
+            final TeamSearchException searchError = error;
+            runOnUiThread(() -> applyTeamSearchResult(
+                    token, curated, remoteResult, searchError));
+        });
+    }
+
+    private void applyTeamSearchResult(int token, List<TrackedTeam> curated,
+                                       List<TrackedTeam> remote,
+                                       TeamSearchException error) {
+        if (token != teamSearchToken || isFinishing() || isDestroyed()) return;
+
+        teamSearchButton.setEnabled(!teamList.isReadOnly());
+
+        // La sugerencia local va primero y los remotos no la duplican.
+        LinkedHashMap<String, TrackedTeam> merged = new LinkedHashMap<>();
+        for (TrackedTeam team : curated) merged.put(team.key(), team);
+        for (TrackedTeam team : remote) {
+            if (!merged.containsKey(team.key())) merged.put(team.key(), team);
+        }
+        currentTeamResults = new ArrayList<>(merged.values());
+
+        if (currentTeamResults.isEmpty()) {
+            teamSearchStatus.setText(error == null
+                    ? getString(R.string.settings_team_search_empty)
+                    : errorMessage(error, false));
+            teamSearchStatus.setVisibility(View.VISIBLE);
+            scrollToTeamResults();
+            return;
+        }
+
+        showTeamSearchResults(currentTeamResults);
+        teamSearchStatus.setText(error == null
+                ? getString(R.string.settings_team_search_results,
+                        currentTeamResults.size())
+                : errorMessage(error, !curated.isEmpty()));
+        teamSearchStatus.setVisibility(View.VISIBLE);
+        scrollToTeamResults();
+    }
+
+    private String errorMessage(TeamSearchException error, boolean hasCurated) {
+        switch (error.kind) {
+            case OFFLINE:
+                return getString(hasCurated
+                        ? R.string.settings_team_search_offline
+                        : R.string.settings_team_search_error);
+            case TIMEOUT:
+                return getString(R.string.settings_team_search_timeout);
+            case HTTP:
+                return getString(error.httpStatus == 429
+                        ? R.string.settings_team_search_rate
+                        : R.string.settings_team_search_http);
+            case PARSE:
+                return getString(R.string.settings_team_search_parse);
+            case NOT_FOUND:
+                return getString(R.string.settings_team_search_not_found);
+            case INVALID_QUERY:
+                return getString(R.string.settings_team_search_required);
+            default:
+                return getString(R.string.settings_team_search_error);
+        }
+    }
+
+    private void showTeamSearchResults(List<TrackedTeam> results) {
+        teamSearchResults.removeAllViews();
+        if (results == null || results.isEmpty()) return;
+
+        int[] sports = {TrackedTeam.SPORT_FOOTBALL, TrackedTeam.SPORT_BASKETBALL};
+        int[] headers = {R.string.settings_team_group_football,
+                R.string.settings_team_group_basketball};
+
+        for (int group = 0; group < sports.length; group++) {
+            List<TrackedTeam> groupTeams = new ArrayList<>();
+            for (TrackedTeam team : results) {
+                if (team.sportId == sports[group]) groupTeams.add(team);
+            }
+            if (groupTeams.isEmpty()) continue;
+
+            TextView header = new TextView(this);
+            header.setText(headers[group]);
+            header.setTextColor(0xFF808080);
+            header.setTextSize(14);
+            header.setPadding(dp(4), dp(8), dp(4), dp(4));
+            teamSearchResults.addView(header);
+
+            for (TrackedTeam team : groupTeams) {
+                View row = getLayoutInflater().inflate(
+                        R.layout.view_team_result_row, teamSearchResults, false);
+
+                loadTeamLogo(team.logoUrl, row.findViewById(R.id.teamResultLogo));
+                ((TextView) row.findViewById(R.id.teamResultName))
+                        .setText(team.name);
+
+                String detail = teamResultDetail(team);
+                TextView detailView = row.findViewById(R.id.teamResultDetail);
+                detailView.setText(detail);
+                detailView.setVisibility(detail.isEmpty() ? View.GONE : View.VISIBLE);
+
+                TrackedTeam existing = teamList.find(team.key());
+                int actionRes;
+                int actionColor;
+                if (existing == null) {
+                    actionRes = R.string.settings_team_result_add;
+                    actionColor = 0xFFE0A85A;
+                } else if (existing.enabled) {
+                    actionRes = R.string.settings_team_result_added;
+                    actionColor = 0xFF808080;
+                } else {
+                    actionRes = R.string.settings_team_result_paused;
+                    actionColor = 0xFFE0A85A;
+                }
+
+                TextView action = row.findViewById(R.id.teamResultAction);
+                action.setText(actionRes);
+                action.setTextColor(actionColor);
+                if (teamList.isReadOnly()) {
+                    action.setAlpha(0.5f);
+                    row.setClickable(false);
+                } else {
+                    row.setOnClickListener(v -> addTeam(team));
+                }
+
+                List<String> desc = new ArrayList<>();
+                desc.add(team.name);
+                if (!detail.isEmpty()) desc.add(detail);
+                desc.add(getString(actionRes));
+                if (TrackedTeam.PROVIDER_AS_CELTAS.equals(team.provider)) {
+                    desc.add(getString(R.string.settings_team_curated));
+                }
+                row.setContentDescription(TextUtils.join(" · ", desc));
+
+                LinearLayout.LayoutParams params =
+                        (LinearLayout.LayoutParams) row.getLayoutParams();
+                if (params != null) params.topMargin = dp(4);
+                teamSearchResults.addView(row);
+            }
+        }
+    }
+
+    private static String teamResultDetail(TrackedTeam team) {
+        List<String> parts = new ArrayList<>(3);
+        if (!team.competition.isEmpty()) parts.add(team.competition);
+        String sport = team.sport();
+        if (!sport.isEmpty()) parts.add(sport);
+        if (!team.country.isEmpty()) parts.add(team.country);
+        return TextUtils.join(" · ", parts);
+    }
+
+    /** Reescribe las filas ya visibles para reflejar altas, bajas y pausas. */
+    private void refreshTeamSearchResults() {
+        if (currentTeamResults == null || currentTeamResults.isEmpty()) return;
+        if (isFinishing() || isDestroyed()) return;
+        showTeamSearchResults(currentTeamResults);
+    }
+
+    private void renderTeamList() {
+        int scrollY = settingsScroll.getScrollY();
+        teamListContainer.removeAllViews();
+
+        boolean readOnly = teamList.isReadOnly();
+        int size = teamList.size();
+        int active = teamList.activeCount();
+
+        teamsReadOnly.setVisibility(readOnly ? View.VISIBLE : View.GONE);
+        teamListCount.setText(getString(R.string.settings_teams_count,
+                size, TrackedTeamList.MAX_TEAMS, active));
+
+        if (size == 0) {
+            teamListHint.setText(R.string.settings_teams_empty);
+            teamListHint.setVisibility(View.VISIBLE);
+        } else if (active == 0) {
+            teamListHint.setText(R.string.settings_teams_all_paused);
+            teamListHint.setVisibility(View.VISIBLE);
+        } else {
+            teamListHint.setText("");
+            teamListHint.setVisibility(View.GONE);
+        }
+
+        addDefaultTeamsButton.setVisibility(
+                !readOnly && hasMissingDefaults() ? View.VISIBLE : View.GONE);
+
+        for (int i = 0; i < size; i++) {
+            TrackedTeam team = teamList.get(i);
+            View row = getLayoutInflater().inflate(
+                    R.layout.view_team_row, teamListContainer, false);
+
+            loadTeamLogo(team.logoUrl, row.findViewById(R.id.teamLogo));
+
+            TextView name = row.findViewById(R.id.teamName);
+            name.setText(team.name);
+
+            String detail = team.settingsDetail();
+            TextView detailView = row.findViewById(R.id.teamDetail);
+            detailView.setText(detail);
+            detailView.setVisibility(detail.isEmpty() ? View.GONE : View.VISIBLE);
+
+            String badge = team.badge();
+            List<String> badges = new ArrayList<>();
+            if (!badge.isEmpty()) badges.add(badge);
+            if (!team.enabled) badges.add(getString(R.string.settings_team_paused));
+            TextView badgesView = row.findViewById(R.id.teamBadges);
+            badgesView.setText(TextUtils.join(" · ", badges));
+            badgesView.setVisibility(badges.isEmpty() ? View.GONE : View.VISIBLE);
+
+            // Los equipos en pausa se atenúan, salvo el control de seguir.
+            float alpha = team.enabled ? 1f : 0.5f;
+            name.setAlpha(alpha);
+            detailView.setAlpha(alpha);
+            badgesView.setAlpha(alpha);
+
+            CheckBox follow = row.findViewById(R.id.teamEnabled);
+            follow.setOnCheckedChangeListener(null);
+            follow.setChecked(team.enabled);
+            follow.setContentDescription(getString(
+                    R.string.settings_team_follow_desc, team.name));
+            follow.setEnabled(!readOnly);
+            follow.setOnCheckedChangeListener((button, checked) ->
+                    setTeamEnabled(team, checked));
+
+            TextView delete = row.findViewById(R.id.teamDelete);
+            delete.setContentDescription(getString(
+                    R.string.settings_team_delete_desc, team.name));
+            delete.setEnabled(!readOnly);
+            delete.setAlpha(readOnly ? 0.4f : 1f);
+            if (!readOnly) delete.setOnClickListener(v -> confirmRemoveTeam(team));
+
+            List<String> desc = new ArrayList<>();
+            desc.add(team.name);
+            if (!detail.isEmpty()) desc.add(detail);
+            desc.add(getString(team.enabled
+                    ? R.string.settings_team_state_active
+                    : R.string.settings_team_state_paused));
+            if (!badge.isEmpty()) desc.add(badge);
+            row.setContentDescription(TextUtils.join(" · ", desc));
+            if (readOnly) {
+                row.setClickable(false);
+            } else {
+                // Toda la fila alterna el seguimiento, como el checkbox.
+                row.setOnClickListener(v -> setTeamEnabled(team, !team.enabled));
+            }
+
+            LinearLayout.LayoutParams params =
+                    (LinearLayout.LayoutParams) row.getLayoutParams();
+            if (params != null) params.topMargin = i == 0 ? 0 : dp(4);
+            teamListContainer.addView(row);
+        }
+
+        refreshTeamSearchResults();
+        settingsScroll.post(() -> settingsScroll.scrollTo(0, scrollY));
+    }
+
+    private boolean hasMissingDefaults() {
+        for (TrackedTeam team : TrackedTeam.defaults()) {
+            if (teamList.indexOf(team.key()) < 0) return true;
+        }
+        return false;
+    }
+
+    private void setTeamEnabled(TrackedTeam team, boolean enabled) {
+        if (teamList.isReadOnly()) {
+            showTeamStatus(R.string.settings_teams_readonly);
+            return;
+        }
+        if (!teamList.setEnabled(team.key(), enabled)) return;
+
+        prefs.saveTeams(teamList);
+        renderTeamList();
+        showTeamStatus(getString(enabled
+                ? R.string.settings_team_enabled
+                : R.string.settings_team_paused_status, team.name));
+    }
+
+    private void confirmRemoveTeam(TrackedTeam team) {
+        if (teamList.isReadOnly()) {
+            showTeamStatus(R.string.settings_teams_readonly);
+            return;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.settings_team_remove_title)
+                .setMessage(getString(
+                        R.string.settings_team_remove_message, team.name))
+                .setPositiveButton(R.string.settings_team_remove_confirm,
+                        (dialog, which) -> removeTeam(team))
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void removeTeam(TrackedTeam team) {
+        TrackedTeamList.RemoveResult result = teamList.remove(team.key());
+        if (result == TrackedTeamList.RemoveResult.READ_ONLY) {
+            showTeamStatus(R.string.settings_teams_readonly);
+            return;
+        }
+        if (result != TrackedTeamList.RemoveResult.REMOVED) return;
+
+        prefs.saveTeams(teamList);
+        renderTeamList();
+        showTeamStatus(getString(R.string.settings_team_removed, team.name));
+    }
+
+    private void addTeam(TrackedTeam team) {
+        if (teamList.isReadOnly()) {
+            showTeamStatus(R.string.settings_teams_readonly);
+            return;
+        }
+
+        TrackedTeam existing = teamList.find(team.key());
+        if (existing != null) {
+            if (existing.enabled) {
+                showTeamStatus(getString(R.string.settings_team_exists, team.name));
+                return;
+            }
+            if (!teamList.setEnabled(team.key(), true)) return;
+            prefs.saveTeams(teamList);
+            renderTeamList();
+            showTeamStatus(getString(R.string.settings_team_reactivated, team.name));
+            return;
+        }
+
+        TrackedTeamList.AddResult result = teamList.add(team);
+        switch (result) {
+            case ADDED:
+                prefs.saveTeams(teamList);
+                renderTeamList();
+                showTeamStatus(getString(R.string.settings_team_added, team.name));
+                break;
+            case DUPLICATE:
+                showTeamStatus(getString(R.string.settings_team_exists, team.name));
+                break;
+            case FULL:
+                showTeamStatus(R.string.settings_teams_full);
+                break;
+            case READ_ONLY:
+                showTeamStatus(R.string.settings_teams_readonly);
+                break;
+            default:
+                showTeamStatus(R.string.settings_team_invalid);
+                break;
+        }
+        refreshTeamSearchResults();
+    }
+
+    private void addDefaultTeams() {
+        if (teamList.isReadOnly()) {
+            showTeamStatus(R.string.settings_teams_readonly);
+            return;
+        }
+
+        int added = 0;
+        for (TrackedTeam team : TrackedTeam.defaults()) {
+            if (teamList.indexOf(team.key()) >= 0) continue;
+            TrackedTeamList.AddResult result = teamList.add(team);
+            if (result == TrackedTeamList.AddResult.ADDED) {
+                added++;
+            } else if (result == TrackedTeamList.AddResult.FULL) {
+                break;
+            } else if (result == TrackedTeamList.AddResult.READ_ONLY) {
+                showTeamStatus(R.string.settings_teams_readonly);
+                return;
+            }
+        }
+
+        if (added > 0) {
+            prefs.saveTeams(teamList);
+            renderTeamList();
+            showTeamStatus(getString(R.string.settings_teams_defaults_added, added));
+        } else if (hasMissingDefaults()
+                && teamList.size() >= TrackedTeamList.MAX_TEAMS) {
+            showTeamStatus(R.string.settings_teams_full);
+        } else {
+            showTeamStatus(R.string.settings_teams_defaults_none);
+        }
+        refreshTeamSearchResults();
+    }
+
+    private void showAddTeamByIdDialog() {
+        if (teamList.isReadOnly()) {
+            showTeamStatus(R.string.settings_teams_readonly);
+            return;
+        }
+
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        int horizontal = dp(24);
+        box.setPadding(horizontal, dp(8), horizontal, 0);
+
+        final EditText input = new EditText(this);
+        input.setHint(R.string.settings_team_by_id_hint);
+        input.setInputType(InputType.TYPE_CLASS_NUMBER);
+        input.setSingleLine(true);
+        input.setTextColor(0xFFFFFFFF);
+        input.setHintTextColor(0xFF808080);
+        input.setFilters(new InputFilter[]{
+                new InputFilter.LengthFilter(12)});
+        box.addView(input, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        final TextView status = new TextView(this);
+        status.setTextColor(0xFFE0A85A);
+        status.setTextSize(14);
+        status.setVisibility(View.GONE);
+        LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        statusParams.topMargin = dp(8);
+        box.addView(status, statusParams);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle(R.string.settings_team_by_id_title)
+                .setView(box)
+                .setPositiveButton(R.string.settings_team_result_add, null)
+                .setNegativeButton(R.string.cancel, null)
+                .create();
+
+        dialog.setOnShowListener(ignored ->
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+                        .setOnClickListener(v -> {
+                            String raw = input.getText().toString().trim();
+                            long id;
+                            try {
+                                id = Long.parseLong(raw);
+                            } catch (NumberFormatException e) {
+                                id = 0L;
+                            }
+                            if (id <= 0L) {
+                                status.setText(R.string.settings_team_by_id_invalid);
+                                status.setVisibility(View.VISIBLE);
+                                return;
+                            }
+
+                            final long teamId = id;
+                            input.setEnabled(false);
+                            dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+                                    .setEnabled(false);
+                            status.setText(R.string.settings_team_by_id_working);
+                            status.setVisibility(View.VISIBLE);
+
+                            teamSearchExecutor.execute(() -> {
+                                TrackedTeam found = null;
+                                TeamSearchException error = null;
+                                try {
+                                    found = TeamSearchClient.fetchById(teamId);
+                                } catch (TeamSearchException e) {
+                                    error = e;
+                                }
+                                final TrackedTeam result = found;
+                                final TeamSearchException failure = error;
+                                runOnUiThread(() -> {
+                                    if (isFinishing() || isDestroyed()) return;
+                                    // Si se cerró el diálogo, no se añade nada.
+                                    if (!dialog.isShowing()) return;
+                                    if (result != null) {
+                                        dialog.dismiss();
+                                        addTeam(result);
+                                        return;
+                                    }
+                                    input.setEnabled(true);
+                                    dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+                                            .setEnabled(true);
+                                    if (failure != null && failure.kind
+                                            == TeamSearchException.Kind.NOT_FOUND) {
+                                        status.setText(
+                                                R.string.settings_team_by_id_not_found);
+                                    } else {
+                                        status.setText(failure == null
+                                                ? getString(
+                                                        R.string.settings_team_search_error)
+                                                : errorMessage(failure, false));
+                                    }
+                                    status.setVisibility(View.VISIBLE);
+                                });
+                            });
+                        }));
+        dialog.show();
+    }
+
+    private void applyTeamsReadOnlyControls() {
+        boolean readOnly = teamList.isReadOnly();
+        teamsReadOnly.setVisibility(readOnly ? View.VISIBLE : View.GONE);
+        teamQuery.setEnabled(!readOnly);
+        teamSearchButton.setEnabled(!readOnly);
+        addTeamByIdButton.setEnabled(!readOnly);
+        addDefaultTeamsButton.setVisibility(
+                !readOnly && hasMissingDefaults() ? View.VISIBLE : View.GONE);
+    }
+
+    private void showTeamStatus(int stringRes) {
+        showTeamStatus(getString(stringRes));
+    }
+
+    private void showTeamStatus(CharSequence text) {
+        teamListStatus.setText(text);
+        teamListStatus.setVisibility(View.VISIBLE);
+    }
+
+    private void scrollToTeamResults() {
+        settingsScroll.post(() ->
+                settingsScroll.smoothScrollTo(0, teamSearchStatus.getTop()));
+    }
+
+    private void loadTeamLogo(String url, ImageView view) {
+        view.setImageResource(R.drawable.ic_crest_placeholder);
+        if (url == null || url.isEmpty()) {
+            view.setTag(null);
+            return;
+        }
+
+        view.setTag(url);
+        Bitmap cached = LogoLoader.peek(url);
+        if (cached != null) {
+            view.setImageBitmap(cached);
+            return;
+        }
+
+        Context app = getApplicationContext();
+        teamLogoExecutor.execute(() -> {
+            Bitmap bitmap = LogoLoader.load(app, url);
+            if (bitmap == null) return;
+            runOnUiThread(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                if (url.equals(view.getTag())) view.setImageBitmap(bitmap);
+            });
+        });
     }
 
     /**
@@ -968,10 +1650,14 @@ public class SettingsActivity extends Activity {
     }
 
     private void hideKeyboard() {
+        hideKeyboard(cityQuery);
+    }
+
+    private void hideKeyboard(View view) {
         InputMethodManager imm = (InputMethodManager)
                 getSystemService(INPUT_METHOD_SERVICE);
-        if (imm != null) {
-            imm.hideSoftInputFromWindow(cityQuery.getWindowToken(), 0);
+        if (imm != null && view != null) {
+            imm.hideSoftInputFromWindow(view.getWindowToken(), 0);
         }
     }
 

@@ -16,9 +16,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Predicate;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class MatchRepositoryTest {
@@ -381,6 +383,187 @@ public class MatchRepositoryTest {
         assertEquals(0, snapshot.sources.get("rfef").matchCount);
     }
 
+    @Test
+    public void disabledSourceIsNotInvoked() {
+        FakeSource enabled = new FakeSource("365scores",
+                SourceResult.empty(1L, 1L));
+        FakeSource disabled = new FakeSource("rfef",
+                SourceResult.ok(Collections.singletonList(
+                        match(40L, "rfef", START, "As Celtas", "Rival",
+                                MatchStatus.SCHEDULED)), 1L, 1L),
+                selection -> false);
+
+        repository = repository(enabled, disabled);
+
+        MatchesSnapshot snapshot = repository.fetchBlocking(DATE);
+
+        assertEquals(1, enabled.calls());
+        assertEquals(0, disabled.calls());
+        assertFalse(snapshot.sources.containsKey("rfef"));
+    }
+
+    @Test
+    public void noActiveSourcesReturnsEmptyWithoutCacheOrNetwork() {
+        FakeSource first = new FakeSource("365scores",
+                SourceResult.ok(Collections.singletonList(
+                        match(41L, "365scores", START, "Real Madrid", "Rayo Vallecano",
+                                MatchStatus.LIVE)), 1L, 1L),
+                selection -> false);
+        FakeSource second = new FakeSource("rfef",
+                SourceResult.ok(Collections.singletonList(
+                        match(42L, "rfef", START, "As Celtas", "Rival",
+                                MatchStatus.SCHEDULED)), 1L, 1L),
+                selection -> false);
+
+        repository = repository(first, second);
+
+        MatchesSnapshot snapshot = repository.fetchBlocking(DATE);
+
+        assertTrue(snapshot.matches.isEmpty());
+        assertTrue(snapshot.sources.isEmpty());
+        assertFalse(snapshot.stale);
+        assertEquals(0, first.calls());
+        assertEquals(0, second.calls());
+        assertNull(cache.load(DATE));
+    }
+
+    @Test
+    public void onlyScores365ActiveSkipsRfefAndCelta() {
+        FakeSource scores = new FakeSource("365scores",
+                SourceResult.ok(Collections.singletonList(
+                        match(43L, "365scores", START, "Real Madrid", "Rayo Vallecano",
+                                MatchStatus.LIVE)), 1L, 1L),
+                selection -> !selection.scores365Ids().isEmpty());
+        FakeSource rfef = new FakeSource("rfef",
+                SourceResult.ok(Collections.singletonList(
+                        match(44L, "rfef", START, "As Celtas", "Rival",
+                                MatchStatus.SCHEDULED)), 1L, 1L),
+                TeamSelection::asCeltasEnabled);
+        FakeSource celta = new FakeSource("celta",
+                SourceResult.ok(Collections.singletonList(
+                        match(45L, "celta", START, "As Celtas", "Rival",
+                                MatchStatus.SCHEDULED)), 1L, 1L),
+                TeamSelection::asCeltasEnabled);
+
+        repository = repository(holder(team365(131L, "Real Madrid")),
+                scores, rfef, celta);
+
+        MatchesSnapshot snapshot = repository.fetchBlocking(DATE);
+
+        assertEquals(1, snapshot.matches.size());
+        assertEquals("365scores", snapshot.matches.get(0).sourceId);
+        assertEquals(1, scores.calls());
+        assertEquals(0, rfef.calls());
+        assertEquals(0, celta.calls());
+        assertEquals(Collections.singletonList("365scores"),
+                repository.activeSourceIds());
+    }
+
+    @Test
+    public void differentTeamSignatureInvalidatesCacheAndForcesFetch() {
+        Match cached = match(46L, "rfef", at(18, 0),
+                "As Celtas", "Rival", MatchStatus.FINISHED);
+        cache.save(new MatchesSnapshot(DATE,
+                Collections.singletonList(cached), Collections.emptyMap(),
+                1234L, false), "firma-antigua");
+
+        FakeSource rfef = new FakeSource("rfef",
+                SourceResult.error(SourceState.OFFLINE, "Sin red", 3000L, 50L));
+
+        repository = repository(holder(team365(131L, "Real Madrid")), rfef);
+
+        MatchesSnapshot snapshot = repository.fetchBlocking(DATE);
+
+        assertEquals(1, rfef.calls());
+        assertTrue(snapshot.matches.isEmpty());
+        assertFalse(snapshot.stale);
+        assertTrue(snapshot.hasErrors());
+    }
+
+    @Test
+    public void mergeKeepsTrackingFlagsWhenNamesAreSwapped() {
+        Match live = match(47L, "365scores", START,
+                "Real Madrid", "Rayo Vallecano", MatchStatus.LIVE);
+        live.homeTracked = true;
+        live.trackedIsHome = true;
+        live.trackedName = "Real Madrid";
+        live.opponentName = "Rayo Vallecano";
+
+        Match scheduled = match(48L, "rfef", START,
+                "Rayo Vallecano", "Real Madrid", MatchStatus.SCHEDULED);
+        scheduled.trackedId = 131L;
+        scheduled.homeTracked = false;
+        scheduled.awayTracked = true;
+        scheduled.trackedIsHome = false;
+        scheduled.trackedName = "Real Madrid";
+        scheduled.opponentName = "Rayo Vallecano";
+
+        repository = repository(
+                new FakeSource("365scores",
+                        SourceResult.ok(Collections.singletonList(live), 1L, 1L)),
+                new FakeSource("rfef",
+                        SourceResult.ok(Collections.singletonList(scheduled), 1L, 1L)));
+
+        MatchesSnapshot snapshot = repository.fetchBlocking(DATE);
+
+        assertEquals(1, snapshot.matches.size());
+        Match merged = snapshot.matches.get(0);
+        assertEquals(131L, merged.trackedId);
+        assertTrue(merged.homeTracked);
+        assertFalse(merged.awayTracked);
+        assertTrue(merged.isTrackedSide(true));
+        assertFalse(merged.isTrackedSide(false));
+    }
+
+    @Test
+    public void mergeCopiesLegacyTrackingFromLoserWithSwappedNames() {
+        Match live = match(49L, "365scores", START,
+                "Real Madrid", "Rayo Vallecano", MatchStatus.LIVE);
+        live.trackedIsHome = false;
+
+        Match scheduled = match(50L, "rfef", START,
+                "Rayo Vallecano", "Real Madrid", MatchStatus.SCHEDULED);
+        scheduled.trackedId = 131L;
+        scheduled.homeTracked = false;
+        scheduled.awayTracked = true;
+        scheduled.trackedIsHome = false;
+        scheduled.trackedName = "Real Madrid";
+        scheduled.opponentName = "Rayo Vallecano";
+
+        repository = repository(
+                new FakeSource("365scores",
+                        SourceResult.ok(Collections.singletonList(live), 1L, 1L)),
+                new FakeSource("rfef",
+                        SourceResult.ok(Collections.singletonList(scheduled), 1L, 1L)));
+
+        MatchesSnapshot snapshot = repository.fetchBlocking(DATE);
+
+        assertEquals(1, snapshot.matches.size());
+        Match merged = snapshot.matches.get(0);
+        assertEquals(131L, merged.trackedId);
+        assertTrue(merged.homeTracked);
+        assertFalse(merged.awayTracked);
+        assertTrue(merged.trackedIsHome);
+        assertEquals("Real Madrid", merged.trackedName);
+        assertEquals("Rayo Vallecano", merged.opponentName);
+    }
+
+    @Test
+    public void footballAndBasketballWithSameTeamsAndTimeAreNotMerged() {
+        Match football = match(51L, "365scores", START,
+                "Real Madrid", "Rayo Vallecano", MatchStatus.SCHEDULED);
+        Match basketball = match(52L, "365scores", START,
+                "Real Madrid", "Rayo Vallecano", MatchStatus.SCHEDULED);
+        basketball.sport = "Baloncesto";
+
+        repository = repository(new FakeSource("365scores",
+                SourceResult.ok(Arrays.asList(football, basketball), 1L, 1L)));
+
+        MatchesSnapshot snapshot = repository.fetchBlocking(DATE);
+
+        assertEquals(2, snapshot.matches.size());
+    }
+
     private static long at(int hour, int minute) {
         return DATE.atTime(hour, minute).atZone(MADRID)
                 .toInstant().toEpochMilli();
@@ -389,6 +572,24 @@ public class MatchRepositoryTest {
     private MatchRepository repository(MatchSource... sources) {
         return new MatchRepository(
                 Arrays.asList(sources), cache, executor, null);
+    }
+
+    private MatchRepository repository(TeamSelectionHolder teams,
+                                       MatchSource... sources) {
+        return new MatchRepository(
+                Arrays.asList(sources), cache, executor, null, teams);
+    }
+
+    private static TeamSelectionHolder holder(TrackedTeam... teams) {
+        TeamSelectionHolder holder = new TeamSelectionHolder();
+        holder.set(new TrackedTeamList(Arrays.asList(teams), false));
+        return holder;
+    }
+
+    private static TrackedTeam team365(long id, String name) {
+        return new TrackedTeam(TrackedTeam.PROVIDER_365, id,
+                TrackedTeam.SPORT_FOOTBALL, name, name.toUpperCase(),
+                "España", "LaLiga", "", true);
     }
 
 
@@ -428,10 +629,18 @@ public class MatchRepositoryTest {
 
         private final String id;
         private final SourceResult<List<Match>> result;
+        private final Predicate<TeamSelection> enabled;
+        private volatile int calls;
 
         FakeSource(String id, SourceResult<List<Match>> result) {
+            this(id, result, selection -> true);
+        }
+
+        FakeSource(String id, SourceResult<List<Match>> result,
+                   Predicate<TeamSelection> enabled) {
             this.id = id;
             this.result = result;
+            this.enabled = enabled;
         }
 
         @Override
@@ -440,8 +649,18 @@ public class MatchRepositoryTest {
         }
 
         @Override
+        public boolean isEnabledFor(TeamSelection selection) {
+            return enabled.test(selection);
+        }
+
+        @Override
         public SourceResult<List<Match>> fetch(LocalDate date) {
+            calls++;
             return result;
+        }
+
+        int calls() {
+            return calls;
         }
     }
 }

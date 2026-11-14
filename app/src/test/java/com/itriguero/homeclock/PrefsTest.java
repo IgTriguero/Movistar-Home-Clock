@@ -4,6 +4,7 @@ import android.content.SharedPreferences;
 
 import org.junit.Test;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -149,6 +150,72 @@ public class PrefsTest {
         prefs.saveCities(new CityList(List.of(vigo), vigo.key()));
 
         assertFalse(store.values.containsKey("weather_cache"));
+    }
+
+    @Test
+    public void loadTeamsSeedsDefaultsAndWritesThemOnce() {
+        FakePrefs store = new FakePrefs();
+        Prefs prefs = new Prefs(store);
+
+        TrackedTeamList teams = prefs.loadTeams();
+
+        assertEquals(6, teams.size());
+        assertTrue(store.values.containsKey("teams_v1"));
+        assertEquals(1, store.applies);
+        assertFalse(store.values.containsKey("cities_v2"));
+
+        TrackedTeamList reloaded = prefs.loadTeams();
+
+        assertEquals(6, reloaded.size());
+        assertEquals(1, store.applies);
+    }
+
+    @Test
+    public void saveTeamsPersistsAnEmptyList() {
+        FakePrefs store = new FakePrefs();
+        Prefs prefs = new Prefs(store);
+
+        prefs.saveTeams(new TrackedTeamList(Collections.emptyList(), false));
+
+        String raw = (String) store.values.get("teams_v1");
+        assertNotNull(raw);
+        TrackedTeamList loaded = prefs.loadTeams();
+        assertEquals(0, loaded.size());
+        assertTrue(loaded.selection().isEmpty());
+    }
+
+    @Test
+    public void futureTeamsVersionIsNotOverwritten() {
+        String raw = "{\"version\":2,\"teams\":[{\"provider\":\"365scores\","
+                + "\"id\":131,\"sportId\":1,\"name\":\"Real Madrid\","
+                + "\"shortName\":\"REAL MADRID\",\"country\":\"España\","
+                + "\"competition\":\"LaLiga\",\"logo\":\"\",\"enabled\":true}]}";
+        FakePrefs store = new FakePrefs();
+        store.values.put("teams_v1", raw);
+        Prefs prefs = new Prefs(store);
+
+        TrackedTeamList teams = prefs.loadTeams();
+        assertTrue(teams.isReadOnly());
+
+        prefs.saveTeams(teams);
+
+        assertEquals(raw, store.values.get("teams_v1"));
+        assertEquals(0, store.applies);
+    }
+
+    @Test
+    public void teamsDoNotInterfereWithCities() {
+        FakePrefs store = new FakePrefs();
+        Prefs prefs = new Prefs(store);
+        City vigo = city("Vigo", 42.23282, -8.72264);
+        prefs.saveCities(new CityList(List.of(vigo), vigo.key()));
+        String cities = (String) store.values.get("cities_v2");
+
+        prefs.saveTeams(new TrackedTeamList(TrackedTeam.defaults(), false));
+
+        assertEquals(cities, store.values.get("cities_v2"));
+        assertEquals("Vigo", prefs.loadCities().selected().name);
+        assertEquals(6, prefs.loadTeams().size());
     }
 
     private static String legacyWeather(double temp) {
