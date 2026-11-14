@@ -38,6 +38,14 @@ jobs:
           java-version: '17'
           cache: gradle
 
+      - name: Verificar que el tag coincide con la versión
+        run: |
+          VERSION=$(grep '^HOMECLOCK_VERSION_NAME=' gradle.properties | cut -d= -f2)
+          if [ "v${VERSION}" != "${GITHUB_REF_NAME}" ]; then
+            echo "El tag ${GITHUB_REF_NAME} no coincide con HOMECLOCK_VERSION_NAME=${VERSION}" >&2
+            exit 1
+          fi
+
       - name: Restaurar keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}

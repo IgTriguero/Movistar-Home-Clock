@@ -88,11 +88,14 @@ Sin *device owner* o root no se puede evitar esa última confirmación del siste
 
 ## Release y CI
 
-- Versión en `gradle.properties`: `HOMECLOCK_VERSION_CODE` y `HOMECLOCK_VERSION_NAME` (actual: `1` / `1.0`).
+- La versión vive en `gradle.properties`: `HOMECLOCK_VERSION_CODE` y `HOMECLOCK_VERSION_NAME`.
+- **No se sube la versión durante el desarrollo normal.** Solo se cambia al preparar una release.
+- Antes de subirla hay que preguntar si es una versión menor `1.X` (nuevas funciones) o un fix `1.X.Y` (correcciones de la `1.X` actual). El procedimiento completo está en [`docs/RELEASE.md`](docs/RELEASE.md) y el comando `/release`.
+- `HOMECLOCK_VERSION_CODE` se incrementa siempre en 1; el tag es `v1.X` o `v1.X.Y` y debe coincidir con `HOMECLOCK_VERSION_NAME`.
 - `.github/workflows/android.yml`: tests + lint + APK debug en cada push; al empujar un tag `v*` compila la release firmada, calcula el SHA-256 y publica el APK y `update.json`.
 - `.github/workflows/contract.yml`: contrato diario a las 06:17 UTC contra las fuentes reales.
 - Secretos del repo: `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`.
-- Flujo: subir versión → commit → `git tag vX.Y` → `git push origin main --tags`.
+- Flujo: pregunta y confirmación de versión → tests/lint → actualizar `gradle.properties` → commit → tag → `git push origin main --tags` → verificar workflow.
 
 Guarda una copia de `keys/homeclock-release.jks` y sus contraseñas. Sin esa clave no se pueden publicar actualizaciones que instalen encima.
 
