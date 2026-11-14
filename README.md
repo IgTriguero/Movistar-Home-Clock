@@ -41,7 +41,7 @@ App Android ligera para un **Movistar Home RG3205W** en horizontal. Muestra un r
 Descarga el APK de la última release:
 
 ```bash
-adb install -r homeclock-1.0.apk
+adb install -r homeclock-1.1.apk
 ```
 
 La primera vez que la app se actualice a sí misma, Android pedirá permitir “Instalar apps desconocidas” para HomeClock. Es un ajuste único.

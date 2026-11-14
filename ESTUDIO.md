@@ -1,6 +1,6 @@
 # HomeClock — Diseño técnico
 
-Documento de arquitectura y decisiones de la versión **1.0** (13/11/2026). Para instalar, compilar y ver las capturas, consulta el [README](README.md).
+Documento de arquitectura y decisiones de la versión **1.1** (14/11/2026). Para instalar, compilar y ver las capturas, consulta el [README](README.md).
 
 ## 1. Objetivo y alcance
 
