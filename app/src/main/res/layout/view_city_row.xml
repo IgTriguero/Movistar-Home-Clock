@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_search_result"
+    android:clickable="true"
+    android:focusable="true"
+    android:gravity="center_vertical"
+    android:minHeight="56dp"
+    android:orientation="horizontal"
+    android:padding="12dp"
+    tools:ignore="ContentDescription">
+
+    <TextView
+        android:id="@+id/cityIndex"
+        android:layout_width="28dp"
+        android:layout_height="wrap_content"
+        android:gravity="center_horizontal"
+        android:textColor="#A0A0A0"
+        android:textSize="16sp"
+        tools:text="1" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="4dp"
+        android:layout_marginEnd="4dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/cityName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:singleLine="true"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp"
+            tools:text="Tres Cantos" />
+
+        <TextView
+            android:id="@+id/cityDetail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:singleLine="true"
+            android:textColor="#A0A0A0"
+            android:textSize="14sp"
+            tools:text="Comunidad de Madrid, España" />
+
+        <TextView
+            android:id="@+id/cityBadges"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:singleLine="true"
+            android:textColor="#E0A85A"
+            android:textSize="12sp"
+            android:visibility="gone"
+            tools:text="Por defecto · Actual"
+            tools:visibility="visible" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/cityUp"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:background="?android:attr/selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center"
+        android:text="@string/settings_city_up_symbol"
+        android:textColor="#E0E0E0"
+        android:textSize="20sp"
+        tools:ignore="ContentDescription" />
+
+    <TextView
+        android:id="@+id/cityDown"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:background="?android:attr/selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center"
+        android:text="@string/settings_city_down_symbol"
+        android:textColor="#E0E0E0"
+        android:textSize="20sp"
+        tools:ignore="ContentDescription" />
+
+    <TextView
+        android:id="@+id/cityDelete"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:background="?android:attr/selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center"
+        android:text="@string/settings_city_delete_symbol"
+        android:textColor="#E0E0E0"
+        android:textSize="20sp"
+        tools:ignore="ContentDescription" />
+</LinearLayout>

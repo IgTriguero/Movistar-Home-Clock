@@ -1,0 +1,28 @@
+{
+  "latitude": 40.4168,
+  "longitude": -3.7038,
+  "timezone": "Europe/Madrid",
+  "timezone_abbreviation": "CET",
+  "elevation": 650.0,
+  "current_units": {
+    "time": "iso8601",
+    "temperature_2m": "°C",
+    "relative_humidity_2m": "%",
+    "apparent_temperature": "°C",
+    "is_day": "",
+    "precipitation": "mm",
+    "weather_code": "wmo code",
+    "wind_speed_10m": "km/h"
+  },
+  "current": {
+    "time": "2026-11-14T10:00",
+    "interval": 900,
+    "temperature_2m": 12.3,
+    "relative_humidity_2m": 78,
+    "apparent_temperature": 10.8,
+    "is_day": 1,
+    "precipitation": 0.0,
+    "weather_code": 2,
+    "wind_speed_10m": 12.4
+  }
+}

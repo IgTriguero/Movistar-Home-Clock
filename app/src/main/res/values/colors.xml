@@ -1,3 +1,5 @@
 <resources>
     <color name="ic_launcher_background">#1A1814</color>
+    <color name="weather_dot_active">#E0A85A</color>
+    <color name="weather_dot_inactive">#3A3A3A</color>
 </resources>

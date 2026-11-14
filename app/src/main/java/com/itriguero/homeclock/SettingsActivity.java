@@ -1,7 +1,9 @@
 package com.itriguero.homeclock;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
@@ -13,10 +15,9 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import org.json.JSONObject;
-
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -25,14 +26,18 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Ajustes de la app: búsqueda de ciudad por nombre, partidos y modo noche.
- * La ciudad se guarda al tocar un resultado; Guardar persiste el resto.
+ * Ajustes de la app: lista editable de ciudades, búsqueda, partidos y modo
+ * noche. Las operaciones sobre la lista se guardan al instante; Guardar
+ * persiste el resto.
  */
 public class SettingsActivity extends Activity {
 
     private Prefs prefs;
 
-    private TextView currentCity;
+    private CityList cityList;
+    private LinearLayout cityListContainer;
+    private TextView cityListCount;
+    private TextView cityListStatus;
     private EditText cityQuery;
     private Button searchButton;
     private TextView searchStatus;
@@ -65,7 +70,9 @@ public class SettingsActivity extends Activity {
 
         prefs = new Prefs(this);
 
-        currentCity = findViewById(R.id.currentCity);
+        cityListContainer = findViewById(R.id.cityList);
+        cityListCount = findViewById(R.id.cityListCount);
+        cityListStatus = findViewById(R.id.cityListStatus);
         cityQuery = findViewById(R.id.cityQuery);
         searchButton = findViewById(R.id.searchButton);
         searchStatus = findViewById(R.id.searchStatus);
@@ -87,7 +94,9 @@ public class SettingsActivity extends Activity {
         clearLogosButton = findViewById(R.id.clearLogosButton);
         diagnosticsStatus = findViewById(R.id.diagnosticsStatus);
 
-        currentCity.setText(prefs.city());
+        cityList = prefs.loadCities();
+        renderCityList();
+
         showMatchesInput.setChecked(prefs.showMatches());
         nightEnabledInput.setChecked(prefs.nightEnabled());
         nightStartInput.setText(prefs.nightStart());
@@ -118,6 +127,9 @@ public class SettingsActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        // MainActivity puede haber cambiado la selección deslizando el reloj.
+        cityList = prefs.loadCities();
+        renderCityList();
         updateDiagnostics();
     }
 
@@ -178,11 +190,88 @@ public class SettingsActivity extends Activity {
         });
     }
 
+    private void renderCityList() {
+        int scrollY = settingsScroll.getScrollY();
+        cityListContainer.removeAllViews();
+
+        int size = cityList.size();
+        int selectedIndex = cityList.selectedIndex();
+        cityListCount.setText(getString(
+                R.string.settings_cities_count, size, CityList.MAX_CITIES));
+
+        for (int i = 0; i < size; i++) {
+            final int index = i;
+            final City city = cityList.get(i);
+            View row = getLayoutInflater().inflate(
+                    R.layout.view_city_row, cityListContainer, false);
+
+            TextView indexView = row.findViewById(R.id.cityIndex);
+            indexView.setText(String.valueOf(i + 1));
+
+            TextView nameView = row.findViewById(R.id.cityName);
+            nameView.setText(city.name);
+
+            TextView detailView = row.findViewById(R.id.cityDetail);
+            String detail = cityDetail(city);
+            detailView.setText(detail);
+            detailView.setVisibility(detail.isEmpty() ? View.GONE : View.VISIBLE);
+
+            List<String> badges = new ArrayList<>();
+            if (i == 0) badges.add(getString(R.string.settings_city_badge_default));
+            if (i == selectedIndex) {
+                badges.add(getString(R.string.settings_city_badge_current));
+            }
+            if (city.source == City.Source.DETECTED) {
+                badges.add(getString(R.string.settings_city_badge_detected));
+            }
+            TextView badgesView = row.findViewById(R.id.cityBadges);
+            badgesView.setText(TextUtils.join(" · ", badges));
+            badgesView.setVisibility(badges.isEmpty() ? View.GONE : View.VISIBLE);
+
+            row.setContentDescription(getString(
+                    R.string.settings_city_row_desc, city.name, i + 1, size));
+            row.setOnClickListener(v -> selectCity(city.key()));
+
+            TextView up = row.findViewById(R.id.cityUp);
+            up.setContentDescription(getString(
+                    R.string.settings_city_move_up_desc, city.name));
+            boolean canMoveUp = i > 0;
+            up.setEnabled(canMoveUp);
+            up.setAlpha(canMoveUp ? 1f : 0.3f);
+            if (canMoveUp) up.setOnClickListener(v -> moveCity(index, -1));
+
+            TextView down = row.findViewById(R.id.cityDown);
+            down.setContentDescription(getString(
+                    R.string.settings_city_move_down_desc, city.name));
+            boolean canMoveDown = i < size - 1;
+            down.setEnabled(canMoveDown);
+            down.setAlpha(canMoveDown ? 1f : 0.3f);
+            if (canMoveDown) down.setOnClickListener(v -> moveCity(index, 1));
+
+            TextView delete = row.findViewById(R.id.cityDelete);
+            delete.setContentDescription(getString(
+                    R.string.settings_city_delete_desc, city.name));
+            delete.setOnClickListener(v -> confirmRemove(city));
+
+            LinearLayout.LayoutParams params =
+                    (LinearLayout.LayoutParams) row.getLayoutParams();
+            if (params != null) params.topMargin = i == 0 ? 0 : dp(4);
+            cityListContainer.addView(row);
+        }
+
+        settingsScroll.post(() -> settingsScroll.scrollTo(0, scrollY));
+    }
+
     private void showResults(List<CitySearchClient.Result> results) {
         searchResults.removeAllViews();
         for (CitySearchClient.Result result : results) {
+            boolean alreadyAdded = cityList.indexOf(
+                    City.keyOf(result.lat, result.lon)) >= 0;
             TextView row = new TextView(this);
-            row.setText(resultLabel(result));
+            String label = resultLabel(result);
+            row.setText(alreadyAdded
+                    ? getString(R.string.settings_city_result_added, label)
+                    : label);
             row.setTextColor(0xFFFFFFFF);
             row.setTextSize(20);
             row.setSingleLine(true);
@@ -191,7 +280,7 @@ public class SettingsActivity extends Activity {
             row.setBackgroundResource(R.drawable.bg_search_result);
             row.setClickable(true);
             row.setFocusable(true);
-            row.setOnClickListener(v -> selectCity(result));
+            row.setOnClickListener(v -> addCity(result));
 
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
@@ -201,12 +290,100 @@ public class SettingsActivity extends Activity {
         }
     }
 
-    private void selectCity(CitySearchClient.Result result) {
-        prefs.saveLocation(result.name, result.lat, result.lon);
-        currentCity.setText(result.name);
-        searchStatus.setText(getString(R.string.settings_city_saved, result.name));
-        searchStatus.setVisibility(View.VISIBLE);
+    private void addCity(CitySearchClient.Result result) {
+        City city = City.from(result, City.Source.MANUAL);
+        if (city == null) {
+            showCityStatus(R.string.settings_city_invalid);
+            return;
+        }
+
+        CityList.AddResult addResult = cityList.add(city);
+        switch (addResult) {
+            case ADDED:
+            case DUPLICATE:
+                cityList.select(city.key());
+                break;
+            case FULL:
+                showCityStatus(R.string.settings_city_full);
+                return;
+            case INVALID:
+                showCityStatus(R.string.settings_city_invalid);
+                return;
+        }
+
+        prefs.saveCities(cityList);
+        String name = cityList.selected().name;
+        clearSearch();
+        renderCityList();
+        showCityStatus(getString(addResult == CityList.AddResult.ADDED
+                ? R.string.settings_city_added
+                : R.string.settings_city_exists, name));
+    }
+
+    private void selectCity(String key) {
+        if (!cityList.select(key)) return;
+        prefs.saveSelection(cityList);
+        renderCityList();
+        showCityStatus(getString(
+                R.string.settings_city_now, cityList.selected().name));
+    }
+
+    private void moveCity(int index, int delta) {
+        if (!cityList.move(index, index + delta)) return;
+        prefs.saveCities(cityList);
+        renderCityList();
+    }
+
+    private void confirmRemove(City city) {
+        if (cityList.size() <= 1) {
+            showCityStatus(R.string.settings_city_last);
+            return;
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.settings_city_remove_title)
+                .setMessage(getString(
+                        R.string.settings_city_remove_message, city.name))
+                .setPositiveButton(R.string.settings_city_remove_confirm,
+                        (dialog, which) -> removeCity(city))
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    private void removeCity(City city) {
+        CityList.RemoveResult result = cityList.remove(city.key());
+        if (result == CityList.RemoveResult.REMOVED) {
+            prefs.saveCities(cityList);
+            renderCityList();
+            showCityStatus(getString(R.string.settings_city_removed, city.name));
+        } else if (result == CityList.RemoveResult.LAST) {
+            showCityStatus(R.string.settings_city_last);
+        }
+    }
+
+    private void showCityStatus(int stringRes) {
+        showCityStatus(getString(stringRes));
+    }
+
+    private void showCityStatus(CharSequence text) {
+        cityListStatus.setText(text);
+        cityListStatus.setVisibility(View.VISIBLE);
+    }
+
+    private void clearSearch() {
+        cityQuery.setText("");
+        hideKeyboard();
         searchResults.removeAllViews();
+        searchStatus.setText("");
+        searchStatus.setVisibility(View.GONE);
+    }
+
+    private static String cityDetail(City city) {
+        if (city.region.isEmpty()) return city.country;
+        if (city.country.isEmpty() || city.region.equalsIgnoreCase(city.country)) {
+            return city.region;
+        }
+        return city.region + ", " + city.country;
     }
 
     /**
@@ -378,11 +555,7 @@ public class SettingsActivity extends Activity {
     }
 
     private long weatherSavedAt() {
-        try {
-            return new JSONObject(prefs.weatherCache()).optLong("savedAt", 0L);
-        } catch (Exception e) {
-            return 0L;
-        }
+        return WeatherCache.decode(prefs.loadWeatherCache()).fetchedAt;
     }
 
     private static String timeLabel(long millis) {

@@ -11,6 +11,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
+import android.text.format.DateUtils;
 import android.view.Gravity;
 import android.view.View;
 import android.view.Window;
@@ -23,13 +24,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import org.json.JSONObject;
-
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -55,12 +50,14 @@ public class MainActivity extends Activity {
 
     private TextView clock;
     private TextView date;
-    private TextView weatherIcon;
-    private TextView temperature;
-    private TextView description;
-    private TextView details;
-    private TextView cityView;
     private TextView updated;
+
+    private WeatherPager weatherPager;
+    private PageDotsView weatherDots;
+    private CityList cityList;
+    private WeatherRepository weatherRepository;
+    private WeatherSnapshot weatherSnapshot;
+    private String lastCitySignature = "";
 
     private LinearLayout matchPanel;
     private LinearLayout matchList;
@@ -104,7 +101,7 @@ public class MainActivity extends Activity {
     private LocalDate lastFetchedDate = LocalDate.now();
 
     private Prefs prefs;
-    private String lastLocationSignature = "";
+    private boolean suppressPageChange;
     private boolean lastShowMatches;
     private String lastTestDate = "";
     private boolean nightEnabled;
@@ -168,15 +165,25 @@ public class MainActivity extends Activity {
 
         prefs = new Prefs(this);
         testDateOverride = BuildConfig.DEBUG ? getIntent().getStringExtra("test_date") : null;
+        cityList = prefs.loadCities();
+        weatherRepository = new WeatherRepository(WeatherClient::fetch,
+                new WeatherRepository.Store() {
+                    @Override
+                    public String read() {
+                        return prefs.loadWeatherCache();
+                    }
+
+                    @Override
+                    public void write(String json) {
+                        prefs.saveWeatherCacheV2(json);
+                    }
+                });
 
         clock = findViewById(R.id.clock);
         date = findViewById(R.id.date);
-        weatherIcon = findViewById(R.id.weatherIcon);
-        temperature = findViewById(R.id.temperature);
-        description = findViewById(R.id.description);
-        details = findViewById(R.id.details);
-        cityView = findViewById(R.id.city);
         updated = findViewById(R.id.updated);
+        weatherPager = findViewById(R.id.weatherPager);
+        weatherDots = findViewById(R.id.weatherDots);
         screenRoot = findViewById(R.id.screenRoot);
         shiftAnchorMillis = System.currentTimeMillis();
         matchPanel = findViewById(R.id.matchPanel);
@@ -193,8 +200,24 @@ public class MainActivity extends Activity {
         showMatches = prefs.showMatches();
         lastShowMatches = showMatches;
         lastTestDate = prefs.testDate();
-        lastLocationSignature = prefs.locationSignature();
         matchPanel.setVisibility(View.GONE);
+
+        weatherPager.setBinder((page, index) -> {
+            if (index < 0 || index >= cityList.size()) return;
+            City city = cityList.get(index);
+            WeatherCache.Entry entry = weatherSnapshot == null
+                    ? null : weatherSnapshot.entryFor(city.key());
+            page.bind(cityList.labelFor(city.key()),
+                    entry == null ? null : entry.weather);
+        });
+        weatherPager.setOnPageChangedListener(index -> {
+            if (suppressPageChange) return;
+            if (index < 0 || index >= cityList.size()) return;
+            cityList.select(cityList.get(index).key());
+            prefs.saveSelection(cityList);
+            lastCitySignature = citySignature();
+            updateWeatherChrome();
+        });
 
         findViewById(R.id.settingsButton).setOnClickListener(v ->
                 startActivity(new Intent(this, SettingsActivity.class)));
@@ -207,6 +230,8 @@ public class MainActivity extends Activity {
         handler.postDelayed(weatherTick, WEATHER_INTERVAL_MS);
         scheduleMatchesTick(MATCHES_IDLE_INTERVAL_MS);
 
+        lastCitySignature = citySignature();
+        updateWeatherChrome();
         refreshWeather();
         refreshMatches();
         maybeCheckForUpdates();
@@ -220,13 +245,17 @@ public class MainActivity extends Activity {
         loadNightConfig();
 
         long now = System.currentTimeMillis();
-        String location = prefs.locationSignature();
+        String previousListSignature = cityList.signature();
+        cityList = prefs.loadCities();
+        String signature = citySignature();
+        boolean listChanged = !cityList.signature().equals(previousListSignature);
+        boolean cityChanged = !signature.equals(lastCitySignature);
         boolean show = prefs.showMatches();
         String testDate = prefs.testDate();
         boolean forceRefresh = prefs.consumeRefreshRequest();
 
         if (forceRefresh) {
-            lastLocationSignature = location;
+            lastCitySignature = signature;
             lastShowMatches = show;
             lastTestDate = testDate;
             showMatches = show;
@@ -237,13 +266,19 @@ public class MainActivity extends Activity {
             browseDeadline = 0;
             handler.removeCallbacks(browseTimeout);
             updatePanelToggle();
+            updateWeatherChrome();
             refreshWeather();
             refreshMatches();
         } else {
-            if (!location.equals(lastLocationSignature)) {
-                lastLocationSignature = location;
-                refreshWeather();
-            } else if (now - lastWeatherFetch > WEATHER_INTERVAL_MS) {
+            boolean weatherDue = now - lastWeatherFetch > WEATHER_INTERVAL_MS;
+            if (cityChanged) {
+                lastCitySignature = signature;
+                updateWeatherChrome();
+                // Cambiar de ciudad sin tocar la lista no necesita red mientras
+                // los datos sigan frescos: el snapshot ya trae todas las
+                // ciudades consultadas.
+                if (listChanged || weatherDue) refreshWeather();
+            } else if (weatherDue) {
                 refreshWeather();
             }
 
@@ -396,140 +431,107 @@ public class MainActivity extends Activity {
     // ---------------------------------------------------------------------
 
     private void refreshWeather() {
+        if (!running) return;
+
         lastWeatherFetch = System.currentTimeMillis();
 
-        String city = prefs.city();
-        double lat = prefs.lat();
-        double lon = prefs.lon();
+        final List<City> cities = cityList.cities();
+        final String signature = citySignature();
 
-        cityView.setText(city);
-        updated.setText(R.string.weather_updating);
+        // Mientras no haya datos se mantiene el aviso de actualización; con
+        // datos se conserva la marca anterior para no parpadear en cada tick.
+        if (weatherSnapshot == null || weatherSnapshot.isEmpty()) {
+            updated.setText(R.string.weather_updating);
+        }
 
         executor.execute(() -> {
-            HttpURLConnection conn = null;
-            try {
-                String url = String.format(Locale.US,
-                        "https://api.open-meteo.com/v1/forecast"
-                                + "?latitude=%.4f&longitude=%.4f"
-                                + "&current=temperature_2m,relative_humidity_2m,apparent_temperature,"
-                                + "is_day,precipitation,weather_code,wind_speed_10m"
-                                + "&timezone=auto",
-                        lat, lon);
-
-                conn = (HttpURLConnection) new URL(url).openConnection();
-                conn.setConnectTimeout(10000);
-                conn.setReadTimeout(10000);
-                conn.setRequestProperty("User-Agent", "HomeClock/1.0");
-
-                int code = conn.getResponseCode();
-                if (code != 200) throw new RuntimeException("HTTP " + code);
-
-                StringBuilder sb = new StringBuilder();
-                try (BufferedReader br = new BufferedReader(
-                        new InputStreamReader(conn.getInputStream(), "UTF-8"))) {
-                    String line;
-                    while ((line = br.readLine()) != null) sb.append(line);
+            WeatherSnapshot snapshot = weatherRepository.refreshBlocking(cities);
+            runOnUiThread(() -> {
+                if (!running) return;
+                weatherSnapshot = snapshot;
+                if (snapshot.fetchedAt > 0) {
+                    Diagnostics.get().recordWeather(snapshot.fetchedAt);
                 }
+                updateWeatherChrome();
 
-                JSONObject root = new JSONObject(sb.toString());
-                JSONObject current = root.getJSONObject("current");
-
-                double temp = current.getDouble("temperature_2m");
-                double feels = current.getDouble("apparent_temperature");
-                int humidity = current.getInt("relative_humidity_2m");
-                double wind = current.getDouble("wind_speed_10m");
-                int weatherCode = current.getInt("weather_code");
-                int isDay = current.optInt("is_day", 1);
-
-                String updatedAt = new SimpleDateFormat("HH:mm", Locale.getDefault())
-                        .format(new Date());
-                saveWeatherCache(temp, feels, humidity, wind, weatherCode, isDay, updatedAt);
-                Diagnostics.get().recordWeather(System.currentTimeMillis());
-
-                runOnUiThread(() -> {
-                    if (!running) return;
-                    applyWeather(temp, feels, humidity, wind, weatherCode, isDay,
-                            getString(R.string.weather_updated, updatedAt));
-                });
-            } catch (Exception e) {
-                String message = getString(R.string.weather_error_short, shortError(e));
-                runOnUiThread(() -> {
-                    if (!running) return;
-                    if (applyCachedWeather()) return;
-                    updated.setText(message);
-                    if (temperature.getText().toString().equals("--°")) {
-                        weatherIcon.setText(R.string.weather_error_icon);
-                        description.setText(R.string.weather_failed);
-                    }
-                });
-            } finally {
-                if (conn != null) conn.disconnect();
-            }
+                // La lista cambió mientras se consultaba la red: se pide un
+                // único refresco más para no quedarse con datos de una lista
+                // vieja. Si la firma no cambió, no se encadena nada.
+                if (!signature.equals(citySignature())) {
+                    handler.post(this::refreshWeather);
+                }
+            });
         });
     }
 
-    private void applyWeather(double temp, double feels, int humidity, double wind,
-                              int weatherCode, int isDay, String updatedLabel) {
-        String[] info = weatherInfo(weatherCode, isDay);
-        weatherIcon.setText(info[0]);
-        temperature.setText(String.format(Locale.getDefault(), "%.0f°", temp));
-        description.setText(info[1]);
-        details.setText(getString(R.string.weather_details,
-                Math.round(feels), humidity, Math.round(wind)));
-        updated.setText(updatedLabel);
-    }
-
-    private void saveWeatherCache(double temp, double feels, int humidity,
-                                  double wind, int weatherCode, int isDay,
-                                  String updatedAt) {
-        try {
-            JSONObject json = new JSONObject();
-            json.put("temp", temp);
-            json.put("feels", feels);
-            json.put("humidity", humidity);
-            json.put("wind", wind);
-            json.put("weatherCode", weatherCode);
-            json.put("isDay", isDay);
-            json.put("updatedAt", updatedAt);
-            json.put("savedAt", System.currentTimeMillis());
-            prefs.saveWeatherCache(json.toString());
-        } catch (Exception ignored) {
-            // Sin caché de tiempo: el próximo intento vuelve a consultar.
-        }
-    }
-
     /**
-     * Aplica el último tiempo guardado. Debe llamarse en el hilo de UI.
+     * Repinta las páginas, los puntos, la marca temporal y la descripción
+     * accesible sin mover la selección guardada.
      */
-    private boolean applyCachedWeather() {
+    private void updateWeatherChrome() {
+        int selected = cityList.selectedIndex();
+
+        suppressPageChange = true;
         try {
-            String raw = prefs.weatherCache();
-            if (raw == null || raw.isEmpty()) return false;
-
-            JSONObject json = new JSONObject(raw);
-            String updatedAt = json.optString("updatedAt", "");
-            long savedAt = json.optLong("savedAt", 0);
-            if (updatedAt.isEmpty() && savedAt <= 0) return false;
-
-            Diagnostics.get().recordWeather(savedAt);
-            String age = savedAt > 0
-                    ? android.text.format.DateUtils.getRelativeTimeSpanString(
-                            savedAt, System.currentTimeMillis(),
-                            android.text.format.DateUtils.MINUTE_IN_MILLIS).toString()
-                    : updatedAt;
-
-            applyWeather(
-                    json.getDouble("temp"),
-                    json.getDouble("feels"),
-                    json.getInt("humidity"),
-                    json.getDouble("wind"),
-                    json.getInt("weatherCode"),
-                    json.optInt("isDay", 1),
-                    getString(R.string.weather_offline, age));
-            return true;
-        } catch (Exception e) {
-            return false;
+            weatherPager.setPageCount(cityList.size());
+            weatherPager.setCurrentItem(selected, false);
+        } finally {
+            suppressPageChange = false;
         }
+
+        weatherPager.notifyPagesChanged();
+        weatherDots.setDots(cityList.size(), selected);
+        updated.setText(weatherUpdatedLabel());
+        weatherPager.setPageDescription(weatherPageDescription());
+    }
+
+    private CharSequence weatherUpdatedLabel() {
+        WeatherSnapshot snapshot = weatherSnapshot;
+        if (snapshot == null || snapshot.isEmpty() || snapshot.fetchedAt <= 0) {
+            return getString(R.string.weather_empty);
+        }
+
+        if (snapshot.state == WeatherSnapshot.State.FRESH) {
+            String label = getString(R.string.weather_updated,
+                    timeFormat.format(new Date(snapshot.fetchedAt)));
+            return snapshot.partial
+                    ? getString(R.string.weather_partial, label)
+                    : label;
+        }
+
+        String age = DateUtils.getRelativeTimeSpanString(
+                snapshot.fetchedAt, System.currentTimeMillis(),
+                DateUtils.MINUTE_IN_MILLIS).toString();
+        return "offline".equals(snapshot.error)
+                ? getString(R.string.weather_offline, age)
+                : getString(R.string.weather_cached_age, age);
+    }
+
+    /** Texto para TalkBack: ciudad visible, tiempo y posición en la lista. */
+    private CharSequence weatherPageDescription() {
+        int size = cityList.size();
+        int index = cityList.selectedIndex();
+        City city = cityList.get(index);
+        String label = cityList.labelFor(city.key());
+
+        Weather weather = weatherSnapshot == null
+                ? null : weatherSnapshot.weatherFor(city.key());
+        if (weather == null) {
+            return getString(R.string.weather_page_a11y_empty,
+                    label, index + 1, size);
+        }
+
+        return getString(R.string.weather_page_a11y,
+                label,
+                String.format(Locale.getDefault(), "%.0f°", weather.temp),
+                WeatherText.description(weather.weatherCode),
+                getString(R.string.weather_page_details,
+                        weather.feels, weather.humidity, weather.wind),
+                index + 1, size);
+    }
+
+    private String citySignature() {
+        return cityList.signature() + "|" + cityList.selectedKey();
     }
 
     // ---------------------------------------------------------------------
@@ -1322,64 +1324,8 @@ public class MainActivity extends Activity {
         return Character.toUpperCase(text.charAt(0)) + text.substring(1);
     }
 
-    private static String shortError(Exception e) {
-        String msg = e.getMessage();
-        if (msg == null || msg.isEmpty()) return e.getClass().getSimpleName();
-        return msg.length() > 60 ? msg.substring(0, 60) : msg;
-    }
-
     private static class MatchRow {
         Match match;
         TextView countdown;
-    }
-
-    private static String[] weatherInfo(int code, int isDay) {
-        switch (code) {
-            case 0:
-                return new String[]{isDay == 1 ? "☀️" : "🌙", "Despejado"};
-            case 1:
-                return new String[]{isDay == 1 ? "🌤️" : "🌙", "Mayormente despejado"};
-            case 2:
-                return new String[]{"⛅", "Parcialmente nublado"};
-            case 3:
-                return new String[]{"☁️", "Nublado"};
-            case 45:
-            case 48:
-                return new String[]{"🌫️", "Niebla"};
-            case 51:
-            case 53:
-            case 55:
-                return new String[]{"🌦️", "Llovizna"};
-            case 56:
-            case 57:
-                return new String[]{"🌧️", "Llovizna helada"};
-            case 61:
-            case 63:
-            case 65:
-                return new String[]{"🌧️", "Lluvia"};
-            case 66:
-            case 67:
-                return new String[]{"🌧️", "Lluvia helada"};
-            case 71:
-            case 73:
-            case 75:
-                return new String[]{"🌨️", "Nieve"};
-            case 77:
-                return new String[]{"🌨️", "Granos de nieve"};
-            case 80:
-            case 81:
-            case 82:
-                return new String[]{"🌦️", "Chubascos"};
-            case 85:
-            case 86:
-                return new String[]{"🌨️", "Chubascos de nieve"};
-            case 95:
-                return new String[]{"⛈️", "Tormenta"};
-            case 96:
-            case 99:
-                return new String[]{"⛈️", "Tormenta con granizo"};
-            default:
-                return new String[]{"🌡️", "Tiempo variable"};
-        }
     }
 }

@@ -1,0 +1,32 @@
+[
+  {
+    "latitude": 40.625,
+    "longitude": -3.75,
+    "timezone": "Europe/Madrid",
+    "current": {
+      "time": "2026-11-14T10:00",
+      "temperature_2m": 11.7,
+      "relative_humidity_2m": 91,
+      "apparent_temperature": 9.1,
+      "is_day": 1,
+      "precipitation": 0.0,
+      "weather_code": 3,
+      "wind_speed_10m": 17.9
+    }
+  },
+  {
+    "latitude": 40.5,
+    "longitude": -3.625,
+    "timezone": "Europe/Madrid",
+    "current": {
+      "time": "2026-11-14T10:00",
+      "temperature_2m": 12.3,
+      "relative_humidity_2m": 78,
+      "apparent_temperature": 10.8,
+      "is_day": 1,
+      "precipitation": 0.0,
+      "weather_code": 2,
+      "wind_speed_10m": 12.4
+    }
+  }
+]

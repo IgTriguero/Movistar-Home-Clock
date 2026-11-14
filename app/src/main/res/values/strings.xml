@@ -6,8 +6,33 @@
     <string name="settings_title">Ajustes</string>
     <string name="settings_back">Volver</string>
 
-    <string name="settings_section_weather">Tiempo</string>
-    <string name="settings_current_city_label">Ciudad actual</string>
+    <!-- Ciudades -->
+    <string name="settings_section_cities">Ciudades</string>
+    <string name="settings_cities_help">La primera es la ciudad por defecto. Desliza en el reloj para cambiar.</string>
+    <string name="settings_cities_count">%1$d / %2$d</string>
+    <string name="settings_cities_add_label">Añadir ciudad</string>
+    <string name="settings_city_badge_default">Por defecto</string>
+    <string name="settings_city_badge_current">Actual</string>
+    <string name="settings_city_badge_detected">Detectada</string>
+    <string name="settings_city_row_desc">Seleccionar %1$s, posición %2$d de %3$d</string>
+    <string name="settings_city_move_up_desc">Subir %1$s</string>
+    <string name="settings_city_move_down_desc">Bajar %1$s</string>
+    <string name="settings_city_delete_desc">Eliminar %1$s</string>
+    <string name="settings_city_up_symbol">↑</string>
+    <string name="settings_city_down_symbol">↓</string>
+    <string name="settings_city_delete_symbol">✕</string>
+    <string name="settings_city_now">Ahora: %1$s</string>
+    <string name="settings_city_added">Ciudad añadida: %1$s</string>
+    <string name="settings_city_exists">Ya estaba en la lista: %1$s</string>
+    <string name="settings_city_full">Máximo 8 ciudades</string>
+    <string name="settings_city_invalid">No se pudo añadir la ciudad</string>
+    <string name="settings_city_last">Debe quedar al menos una ciudad</string>
+    <string name="settings_city_remove_title">Eliminar ciudad</string>
+    <string name="settings_city_remove_message">¿Eliminar %1$s de la lista?</string>
+    <string name="settings_city_remove_confirm">Eliminar</string>
+    <string name="settings_city_removed">Ciudad eliminada: %1$s</string>
+    <string name="settings_city_result_added">%1$s · ya añadida</string>
+
     <string name="settings_city_hint">Busca una ciudad o pueblo</string>
     <string name="settings_search">Buscar</string>
     <string name="settings_searching">Buscando…</string>
@@ -15,7 +40,6 @@
     <string name="settings_search_error">No se pudo buscar. Revisa la conexión.</string>
     <string name="settings_search_required">Escribe un nombre de ciudad</string>
     <string name="settings_search_results">Resultados: %1$d</string>
-    <string name="settings_city_saved">Ciudad guardada: %1$s</string>
 
     <string name="settings_section_matches">Partidos</string>
     <string name="settings_show_matches">Mostrar partidos</string>
@@ -77,11 +101,16 @@
 
     <!-- Tiempo -->
     <string name="weather_updating">Actualizando…</string>
-    <string name="weather_failed">No se pudo obtener el tiempo</string>
     <string name="weather_updated">Actualizado %1$s</string>
-    <string name="weather_details">Sensación %1$d°  ·  Humedad %2$d%%  ·  Viento %3$d km/h</string>
     <string name="weather_offline">Sin conexión · %1$s</string>
-    <string name="weather_error_short">Sin datos · %1$s</string>
+    <string name="weather_empty">Sin datos</string>
+    <string name="weather_page_details">Sensación %1$.0f° · Humedad %2$d%% · Viento %3$.0f km/h</string>
+    <string name="weather_next_city">Ciudad siguiente</string>
+    <string name="weather_previous_city">Ciudad anterior</string>
+    <string name="weather_partial">Datos parciales · %1$s</string>
+    <string name="weather_cached_age">Datos de %1$s</string>
+    <string name="weather_page_a11y">%1$s, %2$s, %3$s. %4$s. Ciudad %5$d de %6$d</string>
+    <string name="weather_page_a11y_empty">%1$s, sin datos. Ciudad %2$d de %3$d</string>
 
     <!-- Partidos -->
     <string name="matches_loading">Cargando partidos…</string>
@@ -136,5 +165,4 @@
     <string name="match_final">Final</string>
     <string name="match_final_ot">Final/OT</string>
     <string name="match_penalties">Penaltis</string>
-    <string name="weather_error_icon">⚠️</string>
 </resources>

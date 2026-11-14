@@ -8,6 +8,7 @@ App Android ligera para un **Movistar Home RG3205W** en horizontal. Muestra un r
 
 - **Reloj** grande `HH:mm` y fecha en español.
 - **Tiempo actual** con Open-Meteo: temperatura, sensación, humedad y viento.
+- **Varias ciudades guardadas** con una sola petición para todas; se cambia de ciudad deslizando en el bloque de tiempo.
 - **Buscador de ciudades y pueblos**; no hay que escribir latitud ni longitud.
 - **Modo noche** configurable: atenúa la pantalla en una franja horaria.
 - **Panel de partidos** con escudos, marcador y estado:
@@ -62,7 +63,7 @@ Sí. El wrapper fija Gradle 8.5 y permite que cualquiera compile con `./gradlew`
 
 ## Ajustes
 
-- **Tiempo**: ciudad actual y buscador por nombre. Al elegir un resultado se guardan ciudad, latitud y longitud internamente; la UI nunca muestra coordenadas.
+- **Ciudades**: lista editable (hasta 8). Se añaden con el buscador, se seleccionan tocando una fila y se reordenan o eliminan con los botones. La primera es la ciudad por defecto y la seleccionada se conserva entre arranques.
 - **Partidos**: mostrar u ocultar el panel.
 - **Noche**: activar y definir inicio/fin (`HH:mm`). La franja puede cruzar medianoche. Si inicio y fin coinciden, no se aplica.
 - **Diagnóstico**: última actualización, latencia, estado de cada fuente, antigüedad de la caché, contadores de escudos y botones **Actualizar ahora** y **Borrar caché de escudos**.
@@ -97,7 +98,7 @@ Guarda una copia de `keys/homeclock-release.jks` y sus contraseñas. Sin esa cla
 
 ## Calidad
 
-- **136 tests** unitarios con JUnit y fixtures de las fuentes.
+- **282 tests** unitarios con JUnit y fixtures de las fuentes.
 - **Contrato diario** contra 365Scores, Open-Meteo, RFEF y Celta.
 - **Soak test** de 72 h: `tools/soak.sh` muestrea PID, PSS, actividad en primer plano y crashes/ANRs. Ver [`docs/SOAK.md`](docs/SOAK.md).
 - **Lint** sin errores; solo quedan avisos menores de rendimiento/estilo (pesos anidados y carpeta de icono adaptativo).
@@ -108,7 +109,10 @@ Guarda una copia de `keys/homeclock-release.jks` y sus contraseñas. Sin esa cla
 ```text
 app/src/main/java/com/itriguero/homeclock/
   MainActivity.java          reloj, tiempo, panel y ciclo de refresco
-  SettingsActivity.java      ajustes, búsqueda de ciudad y diagnóstico
+  SettingsActivity.java      ajustes, lista de ciudades y diagnóstico
+  City / CityList            modelo y lista ordenada de ciudades
+  WeatherRepository          fetch multi-ciudad, caché v2 y fallback
+  WeatherPager / PageDots    paginador táctil del bloque de tiempo
   MatchRepository.java       orquestación, merge y caché de partidos
   MatchesClient / *Source    fuentes 365Scores, RFEF y Celta
   MatchCache.java            caché JSON por fecha
@@ -127,11 +131,16 @@ tools/                       harness de soak
 - [365Scores](https://www.365scores.com/) para fútbol y baloncesto.
 - [RFEF](https://www.rfef.es/) y la web del Celta para As Celtas.
 
-Son APIs y páginas públicas no oficiales: pueden cambiar sin aviso. La app no envía datos personales, no usa cuentas y no incluye analítica.
+Son APIs y páginas públicas no oficiales: pueden cambiar sin aviso. La app no envía datos personales, no usa cuentas y no incluye analítica. El tiempo envía a Open-Meteo las coordenadas de las ciudades guardadas (hasta 8); no se envía la ubicación del dispositivo.
+
+## Ideas y pendientes
+
+El backlog vivo, con la viabilidad técnica de cada propuesta, está en [`docs/BACKLOG.md`](docs/BACKLOG.md).
 
 ## Limitaciones
 
 - Los equipos seguidos están fijados en código; la configuración desde la app queda para una versión posterior.
+- La primera ciudad se elige a mano; la detección por IP está en el backlog.
 - La app es solo horizontal y no arranca sola tras un reinicio o un corte de luz.
 - No hay *kiosco* ni launcher: se abre a mano.
 - Tras una actualización, Android 15 no permite que la app se reabra sola desde el instalador.

@@ -27,14 +27,15 @@ La app es **standalone**: no hay backend propio, cuenta de usuario ni analítica
 ```text
 MainActivity
   ├── reloj/fecha (tick de 1 s)
-  ├── tiempo (Open-Meteo, cada 15 min)
+  ├── tiempo (WeatherRepository multi-ciudad, cada 15 min)
+  ├── pager de ciudades (swipe + dots)
   ├── partidos (MatchRepository, refresco adaptativo)
   ├── modo noche (brillo de ventana)
   ├── pixel shift (protección de pantalla)
   └── actualizaciones (UpdateClient/Downloader/Installer)
 
 SettingsActivity
-  ├── ciudad (Open-Meteo Geocoding)
+  ├── ciudades (lista editable y Open-Meteo Geocoding)
   ├── partidos y modo noche
   └── diagnóstico (Diagnostics + MatchCache + Prefs)
 ```
@@ -42,7 +43,10 @@ SettingsActivity
 | Componente | Responsabilidad |
 |---|---|
 | `MainActivity` | Pantalla principal, ciclo de refresco, render del panel y avisos. |
-| `SettingsActivity` | Ajustes, búsqueda de ciudad y diagnóstico. |
+| `SettingsActivity` | Ajustes, lista de ciudades y diagnóstico. |
+| `City` / `CityList` / `CityListCodec` | Modelo, orden, selección y JSON de ciudades (`cities_v2`). |
+| `WeatherRepository` | Fetch multi-ciudad, merge de caché v2 y fallback offline. |
+| `WeatherPager` / `PageDotsView` | Paginador táctil del tiempo y puntos de posición. |
 | `MatchRepository` | Ejecuta las fuentes en paralelo, fusiona, deduplica y aplica caché. |
 | `Scores365Source` | Fútbol y baloncesto vía 365Scores. |
 | `RfefSource` | As Celtas en Liga (RFEF). |
@@ -119,6 +123,7 @@ La caché de partidos es un JSON por fecha en `filesDir` (`matches_YYYY-MM-DD.js
 
 - Reloj grande y fecha centrados.
 - Bloque de tiempo abajo: icono, temperatura, ciudad a la derecha, descripción y detalles.
+- El bloque es un paginador: swipe izquierda/derecha cambia de ciudad, con puntos de posición y resistencia en los extremos.
 - Panel de partidos a la derecha (40 % del ancho) con cabecera de día, lista y footer de fuentes.
 - El panel se puede ocultar con **OCULTAR / PARTIDOS**.
 - Las flechas ◀ ▶ navegan por días; tras 60 s vuelve a hoy.
@@ -145,7 +150,7 @@ Cada 5 minutos se aplica un desplazamiento de hasta ±4 dp siguiendo un anillo d
 
 `SettingsActivity` incluye:
 
-- **Tiempo**: buscador de ciudades con Open-Meteo. Al seleccionar un resultado se guardan nombre, latitud y longitud y se invalida la caché del tiempo. La búsqueda corre en background y descarta respuestas obsoletas.
+- **Ciudades**: lista editable (máximo 8) con buscador de Open-Meteo. Se añaden, seleccionan, reordenan y eliminan; la primera es la ciudad por defecto. La selección y la lista se guardan al instante. La búsqueda corre en background y descarta respuestas obsoletas.
 - **Partidos**: visibilidad del panel.
 - **Noche**: activación y franja `HH:mm` con validación.
 - **Diagnóstico**: última actualización, latencia, estado por fuente, caché, contadores de escudos, **Actualizar ahora** y **Borrar caché de escudos**.
@@ -164,15 +169,16 @@ Cada 5 minutos se aplica un desplazamiento de hasta ±4 dp siguiendo un anillo d
 
 ## 9. Calidad
 
-- **136 tests** unitarios: modelo, mapper, tiempo, temporada, kickoff, refresco, caché, repositorio, `SourceResult`, diagnóstico, pixel shift, caché de escudos y contrato.
+- **282 tests** unitarios: modelo, mapper, tiempo, temporada, kickoff, refresco, caché, repositorio, `SourceResult`, diagnóstico, pixel shift, caché de escudos, ciudades, caché v2, pager y contrato.
 - **Contrato diario** con datos reales de 365Scores, Open-Meteo, RFEF y Celta.
 - **Soak test**: `tools/soak.sh` muestrea PID, PSS, actividad en primer plano y crashes/ANRs durante 72 h.
 - **Lint**: 0 errores; quedan avisos menores de rendimiento/estilo.
-- **Fixtures**: 365Scores, Celta, jornadas RFEF y geocoding de Vigo.
+- **Fixtures**: 365Scores, Celta, jornadas RFEF, geocoding de Vigo y Open-Meteo multi-ciudad.
 
 ## 10. Limitaciones
 
 - Los equipos seguidos están fijados en código; no hay pantalla para añadirlos o quitarlos.
+- La primera ciudad se elige a mano; la detección por IP está en el backlog.
 - La app es solo horizontal y no arranca sola tras reinicio o corte de luz.
 - No hay kiosco ni launcher.
 - Las fuentes no son APIs oficiales; un cambio de HTML/JSON puede requerir actualizar un parser.
@@ -181,8 +187,14 @@ Cada 5 minutos se aplica un desplazamiento de hasta ±4 dp siguiendo un anillo d
 
 ## 11. Próximos pasos
 
-1. Configuración de equipos desde la app (quitar IDs hardcodeados).
-2. Fallback de fútbol si 365Scores falla.
-3. Diagnóstico persistente entre procesos y aviso de fuente caída.
-4. Prueba de 72 h completa y ajuste de consumo si aparece deriva.
-5. Valorar *device owner* solo si se quiere actualización totalmente silenciosa.
+El detalle vivo, con notas de viabilidad, está en [`docs/BACKLOG.md`](docs/BACKLOG.md). Resumen:
+
+1. ✅ Varias ciudades guardadas con swipe en la zona del tiempo.
+2. Primera ciudad detectada por IP, con botón manual “Usar mi ubicación”.
+3. Detalle de partido en un modal (goles, tarjetas, cambios, alineaciones y estadísticas).
+4. Dónde ver cada partido en España.
+5. Configuración de equipos desde la app (quitar IDs hardcodeados).
+6. Fallback de fútbol si 365Scores falla.
+7. Diagnóstico persistente entre procesos y aviso de fuente caída.
+8. Prueba de 72 h completa y ajuste de consumo si aparece deriva.
+9. Valorar *device owner* solo si se quiere actualización totalmente silenciosa.
