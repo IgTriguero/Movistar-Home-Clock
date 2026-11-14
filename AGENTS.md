@@ -20,6 +20,7 @@ App Android Java para un Movistar Home RG3205W en horizontal: reloj, tiempo y pa
 - Backlog: `docs/BACKLOG.md`
 - Diseño técnico: `ESTUDIO.md`
 - Release: `docs/RELEASE.md`
+- Changelog de release: `docs/release-notes/<versión>.md`
 
 ## Convenciones
 
@@ -44,5 +45,6 @@ Regla obligatoria:
 6. Una release solo se considera creada cuando existe el tag y el workflow de GitHub ha publicado el APK y `update.json`.
 7. Si el usuario no ha pedido una release, no subas la versión, no crees tags y no ejecutes el workflow de release.
 8. Los subagentes de código (`homeclock-coder`) no pueden editar `gradle.properties`; la versión solo la cambia el flujo de release.
+9. **Toda release debe tener changelog.** Antes del commit de release, crea `docs/release-notes/<versión>.md` con todos los cambios visibles para el usuario (nuevas funciones, mejoras y fixes). Ese archivo es la fuente de verdad del cuerpo de la release de GitHub y de las notas de `update.json` que muestra la app. No hace falta que el usuario lo pida cada vez.
 
 El procedimiento completo está en `docs/RELEASE.md`. Para preparar una release, usa el comando `/release`.
