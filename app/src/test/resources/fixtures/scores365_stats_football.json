@@ -1,0 +1,25 @@
+{
+  "statisticsFilters": [
+    {"filterId": -1, "name": "Partido"},
+    {"filterId": 6, "name": "Primer Tiempo"},
+    {"filterId": 8, "name": "Segundo Tiempo"}
+  ],
+  "statistics": [
+    {"id": 10, "name": "Posesión", "competitorId": 139, "isMajor": true, "value": "32%", "valuePercentage": 0.32, "order": 0},
+    {"id": 10, "name": "Posesión", "competitorId": 131, "isMajor": true, "value": "68%", "valuePercentage": 0.68, "order": 0},
+    {"id": 3, "name": "Total Remates", "competitorId": 139, "categoryName": "Remates", "categoryOrder": 1, "isMajor": true, "value": "4", "valuePercentage": 0.17, "order": 2},
+    {"id": 3, "name": "Total Remates", "competitorId": 131, "categoryName": "Remates", "categoryOrder": 1, "isMajor": true, "value": "19", "valuePercentage": 0.83, "order": 2},
+    {"id": 4, "name": "Remates a Puerta", "competitorId": 139, "categoryName": "Remates", "categoryOrder": 1, "isMajor": true, "value": "2", "valuePercentage": 0.15, "order": 3},
+    {"id": 4, "name": "Remates a Puerta", "competitorId": 131, "categoryName": "Remates", "categoryOrder": 1, "isMajor": true, "value": "11", "valuePercentage": 0.85, "order": 3},
+    {"id": 19, "name": "Pases completados", "competitorId": 139, "categoryName": "Pases", "categoryOrder": 2, "value": "225", "valuePercentage": 0.28, "order": 8},
+    {"id": 19, "name": "Pases completados", "competitorId": 131, "categoryName": "Pases", "categoryOrder": 2, "value": "568", "valuePercentage": 0.72, "order": 8},
+    {"id": 41, "name": "Intercepciones", "competitorId": 139, "categoryName": "Defensivas", "categoryOrder": 3, "value": "10", "valuePercentage": 0.48, "order": 42},
+    {"id": 41, "name": "Intercepciones", "competitorId": 131, "categoryName": "Defensivas", "categoryOrder": 3, "value": "11", "valuePercentage": 0.52, "order": 42},
+    {"id": 150, "name": "Duelos ganados", "competitorId": 139, "categoryName": "Duelos", "categoryOrder": 4, "value": "32", "valuePercentage": 0.36, "order": 71},
+    {"id": 150, "name": "Duelos ganados", "competitorId": 131, "categoryName": "Duelos", "categoryOrder": 4, "value": "58", "valuePercentage": 0.64, "order": 71},
+    {"id": 12, "name": "Faltas", "competitorId": 139, "categoryName": "Disciplinarias", "categoryOrder": 5, "value": "26", "valuePercentage": 0.81, "order": 91},
+    {"id": 12, "name": "Faltas", "competitorId": 131, "categoryName": "Disciplinarias", "categoryOrder": 5, "value": "6", "valuePercentage": 0.19, "order": 91},
+    {"id": 1, "name": "Tarjetas Amarillas", "competitorId": 139, "categoryName": "Disciplinarias", "categoryOrder": 5, "isMajor": true, "value": "4", "valuePercentage": 0.57, "order": 92},
+    {"id": 1, "name": "Tarjetas Amarillas", "competitorId": 131, "categoryName": "Disciplinarias", "categoryOrder": 5, "isMajor": true, "value": "3", "valuePercentage": 0.43, "order": 92}
+  ]
+}

@@ -53,6 +53,7 @@ SettingsActivity
 | `IpLocationClient` | Detección de ciudad por IP con `ipwho.is`, normalización y errores tipados. |
 | `WeatherRepository` | Fetch multi-ciudad, merge de caché v2 y fallback offline. |
 | `WeatherPager` / `PageDotsView` | Paginador táctil del tiempo y puntos de posición. |
+| `MatchDetail*` / `MatchDetailDialog` | Detalle de 365Scores, caché de finalizados y modal por pestañas. |
 | `MatchRepository` | Ejecuta las fuentes en paralelo, fusiona, deduplica y aplica caché. |
 | `Scores365Source` | Fútbol y baloncesto vía 365Scores. |
 | `RfefSource` | As Celtas en Liga (RFEF). |
@@ -141,6 +142,15 @@ La caché de partidos es un JSON por fecha en `filesDir` (`matches_YYYY-MM-DD.js
 - Las flechas ◀ ▶ navegan por días; tras 60 s vuelve a hoy.
 - Si no hay partidos, el panel se oculta y el footer sigue disponible.
 
+### Detalle de partido
+
+Al tocar una fila se abre un `Dialog` de plataforma con cabecera fija, cuatro
+pestañas (Resumen, Alineaciones, Estadísticas y Dónde ver) y scroll por pestaña.
+365Scores aporta eventos, alineaciones, estadísticas, estadio, árbitro y
+`tvNetworks`; RFEF y Celta solo muestran el resumen básico y un enlace a su
+fuente. Los partidos finalizados se cachean en `filesDir/match_details`; los
+vivos se refrescan cada 20 s (fútbol) o 15 s (baloncesto).
+
 ### Fila de partido
 
 Una sola fila, sin estilos alternativos:
@@ -181,7 +191,7 @@ Cada 5 minutos se aplica un desplazamiento de hasta ±4 dp siguiendo un anillo d
 
 ## 9. Calidad
 
-- **397 tests** unitarios: modelo, mapper, tiempo, temporada, kickoff, refresco, caché, repositorio, `SourceResult`, diagnóstico, salud de fuentes, codec/estado persistido, PSS/salidas, pixel shift, caché de escudos, ciudades, caché v2, pager, detección IP y contrato.
+- **465 tests** unitarios: modelo, mapper, tiempo, temporada, kickoff, refresco, caché, repositorio, `SourceResult`, diagnóstico, salud de fuentes, codec/estado persistido, PSS/salidas, pixel shift, caché de escudos, ciudades, caché v2, pager, detección IP, detalle de partido y contrato.
 - **Contrato diario** con datos reales de 365Scores, Open-Meteo, RFEF y Celta.
 - **Soak test**: `tools/soak.sh` muestrea PID, PSS, actividad en primer plano y crashes/ANRs durante 72 h.
 - **Lint**: 0 errores; quedan avisos menores de rendimiento/estilo.
@@ -204,7 +214,7 @@ El detalle vivo, con notas de viabilidad, está en [`docs/BACKLOG.md`](docs/BACK
 
 1. ✅ Varias ciudades guardadas con swipe en la zona del tiempo.
 2. ✅ Primera ciudad detectada por IP, con botón manual “Usar mi ubicación”.
-3. Detalle de partido en un modal (goles, tarjetas, cambios, alineaciones y estadísticas).
+3. ✅ Detalle de partido en un modal (goles, tarjetas, cambios, alineaciones y estadísticas).
 4. Dónde ver cada partido en España.
 5. Configuración de equipos desde la app (quitar IDs hardcodeados).
 6. Fallback de fútbol si 365Scores falla.

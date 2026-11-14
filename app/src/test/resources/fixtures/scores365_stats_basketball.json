@@ -1,0 +1,29 @@
+{
+  "statisticsFilters": [
+    {"filterId": -1, "name": "Partido"}
+  ],
+  "statistics": [
+    {"id": 5, "name": "Tiro de campo", "competitorId": 204, "isMajor": true, "value": "34/71 (47.9%)", "valuePercentage": 0.59, "categoryName": "General", "categoryOrder": 33, "order": 1},
+    {"id": 5, "name": "Tiro de campo", "competitorId": 214, "isMajor": true, "value": "22/67 (32.8%)", "valuePercentage": 0.41, "categoryName": "General", "categoryOrder": 33, "order": 1},
+    {"id": 9, "name": "Triples", "competitorId": 204, "isMajor": true, "value": "11/27 (40.7%)", "valuePercentage": 0.58, "categoryName": "General", "categoryOrder": 33, "order": 2},
+    {"id": 9, "name": "Triples", "competitorId": 214, "isMajor": true, "value": "9/31 (29%)", "valuePercentage": 0.42, "categoryName": "General", "categoryOrder": 33, "order": 2},
+    {"id": 13, "name": "Tiros Libres", "competitorId": 204, "isMajor": true, "value": "11/15 (73.3%)", "valuePercentage": 0.46, "categoryName": "General", "categoryOrder": 33, "order": 3},
+    {"id": 13, "name": "Tiros Libres", "competitorId": 214, "isMajor": true, "value": "18/21 (85.7%)", "valuePercentage": 0.54, "categoryName": "General", "categoryOrder": 33, "order": 3},
+    {"id": 18, "name": "Asistencias", "competitorId": 204, "value": "15", "valuePercentage": 0.56, "categoryName": "General", "categoryOrder": 33, "order": 4},
+    {"id": 18, "name": "Asistencias", "competitorId": 214, "value": "12", "valuePercentage": 0.44, "categoryName": "General", "categoryOrder": 33, "order": 4},
+    {"id": 17, "name": "Rebotes", "competitorId": 204, "value": "42", "valuePercentage": 0.62, "categoryName": "General", "categoryOrder": 33, "order": 5},
+    {"id": 17, "name": "Rebotes", "competitorId": 214, "value": "26", "valuePercentage": 0.38, "categoryName": "General", "categoryOrder": 33, "order": 5},
+    {"id": 15, "name": "Rebotes Ofensivos", "competitorId": 204, "value": "8", "valuePercentage": 0.67, "categoryName": "General", "categoryOrder": 33, "order": 6},
+    {"id": 15, "name": "Rebotes Ofensivos", "competitorId": 214, "value": "4", "valuePercentage": 0.33, "categoryName": "General", "categoryOrder": 33, "order": 6},
+    {"id": 16, "name": "Rebotes Defensivos", "competitorId": 204, "value": "34", "valuePercentage": 0.61, "categoryName": "General", "categoryOrder": 33, "order": 7},
+    {"id": 16, "name": "Rebotes Defensivos", "competitorId": 214, "value": "22", "valuePercentage": 0.39, "categoryName": "General", "categoryOrder": 33, "order": 7},
+    {"id": 19, "name": "Robos", "competitorId": 204, "value": "8", "valuePercentage": 0.38, "categoryName": "General", "categoryOrder": 33, "order": 8},
+    {"id": 19, "name": "Robos", "competitorId": 214, "value": "13", "valuePercentage": 0.62, "categoryName": "General", "categoryOrder": 33, "order": 8},
+    {"id": 21, "name": "Bloqueos", "competitorId": 204, "value": "4", "valuePercentage": 0.8, "categoryName": "General", "categoryOrder": 33, "order": 9},
+    {"id": 21, "name": "Bloqueos", "competitorId": 214, "value": "1", "valuePercentage": 0.2, "categoryName": "General", "categoryOrder": 33, "order": 9},
+    {"id": 20, "name": "Pérdida de balón", "competitorId": 204, "value": "17", "valuePercentage": 0.61, "categoryName": "General", "categoryOrder": 33, "order": 10},
+    {"id": 20, "name": "Pérdida de balón", "competitorId": 214, "value": "11", "valuePercentage": 0.39, "categoryName": "General", "categoryOrder": 33, "order": 10},
+    {"id": 22, "name": "FP", "competitorId": 204, "value": "20", "valuePercentage": 0.48, "categoryName": "General", "categoryOrder": 33, "order": 14},
+    {"id": 22, "name": "FP", "competitorId": 214, "value": "22", "valuePercentage": 0.52, "categoryName": "General", "categoryOrder": 33, "order": 14}
+  ]
+}

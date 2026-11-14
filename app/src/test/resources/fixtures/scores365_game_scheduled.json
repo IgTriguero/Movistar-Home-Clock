@@ -1,0 +1,36 @@
+{
+  "game": {
+    "id": 4900001,
+    "sportId": 1,
+    "competitionDisplayName": "España, LaLiga",
+    "startTime": "2026-11-22T21:00:00+01:00",
+    "statusGroup": 2,
+    "statusText": "Prog.",
+    "gameTime": -1,
+    "gameTimeDisplay": "",
+    "homeCompetitor": {
+      "id": 131,
+      "name": "Real Madrid",
+      "score": -1,
+      "lineups": null
+    },
+    "awayCompetitor": {
+      "id": 174,
+      "name": "Rayo Vallecano",
+      "score": -1,
+      "lineups": null
+    },
+    "venue": {
+      "id": 100,
+      "name": "Santiago Bernabéu",
+      "capacity": 81044,
+      "attendance": 0
+    },
+    "officials": [],
+    "members": [],
+    "events": []
+  },
+  "tvNetworks": [
+    {"id": 3, "name": "La 1"}
+  ]
+}

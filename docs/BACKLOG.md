@@ -48,9 +48,18 @@ añade. En Ajustes hay un botón **Usar mi ubicación** con el mismo comportamie
 - En Ajustes solo se muestra la insignia **Actual**; “Por defecto” y
   “Detectada” se retiraron.
 
-## 3. Detalle de partido en un modal 💡 L
+## 3. Detalle de partido en un modal ✅ L
 
-**Objetivo:** tocar una fila de partido y abrir un modal con goles, tarjetas,
+**Implementado:** al tocar una fila se abre un `Dialog` con cabecera, pestañas
+de resumen, alineaciones, estadísticas y TV; refresco en vivo y caché de
+finalizados.
+
+- 365Scores: eventos, alineaciones, estadísticas, estadio, árbitro y
+  `tvNetworks`.
+- RFEF/Celta: resumen básico y enlace a su fuente.
+- El contrato diario valida el detalle con datos reales.
+
+**Objetivo original:** tocar una fila de partido y abrir un modal con goles, tarjetas,
 cambios, alineaciones, estadísticas, estadio y árbitro.
 
 **Viabilidad (verificada contra la API real):**

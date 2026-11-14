@@ -16,6 +16,7 @@ App Android ligera para un **Movistar Home RG3205W** en horizontal. Muestra un r
   - Fútbol: Real Madrid, Rayo Vallecano, España y Liverpool.
   - Baloncesto: Real Madrid (ACB y Euroliga).
   - Celta Femenino (As Celtas) vía RFEF y la web del Celta.
+- **Detalle de partido** al tocar una fila: goles, tarjetas, cambios, alineaciones, estadísticas, estadio, árbitro y dónde ver. RFEF y Celta muestran el resumen básico y un enlace a su fuente.
 - **Minuto real de la API**, sin reloj local inventado: `34'`, `90+4'`, `4C 00:03`.
 - **Refresco adaptativo**: 15 s en baloncesto, 5 s en los últimos 2 min de cuarto, 60 s en fútbol y 6 h sin partidos.
 - **Navegación por días** en el panel con ◀ ▶ y vuelta automática a hoy.
@@ -103,7 +104,7 @@ Guarda una copia de `keys/homeclock-release.jks` y sus contraseñas. Sin esa cla
 
 ## Calidad
 
-- **397 tests** unitarios con JUnit y fixtures de las fuentes.
+- **465 tests** unitarios con JUnit y fixtures de las fuentes.
 - **Contrato diario** contra 365Scores, Open-Meteo, RFEF y Celta.
 - **Soak test** de 72 h: `tools/soak.sh` muestrea PID, PSS, actividad en primer plano y crashes/ANRs. Ver [`docs/SOAK.md`](docs/SOAK.md).
 - **Lint** sin errores; solo quedan avisos menores de rendimiento/estilo (pesos anidados, carpeta de icono adaptativo y plurales).
@@ -121,6 +122,7 @@ app/src/main/java/com/itriguero/homeclock/
   WeatherPager / PageDots    paginador táctil del bloque de tiempo
   MatchRepository.java       orquestación, merge y caché de partidos
   MatchesClient / *Source    fuentes 365Scores, RFEF y Celta
+  MatchDetail* / Dialog      detalle, caché y modal de partido
   MatchCache.java            caché JSON por fecha
   LogoLoader.java            escudos en memoria y disco
   Diagnostics.java           estado vivo del diagnóstico
@@ -155,6 +157,7 @@ El backlog vivo, con la viabilidad técnica de cada propuesta, está en [`docs/B
 ## Limitaciones
 
 - Los equipos seguidos están fijados en código; la configuración desde la app queda para una versión posterior.
+- El detalle completo depende de 365Scores. RFEF y Celta solo ofrecen resumen y enlace a su fuente.
 - La detección por IP es aproximada a nivel de ciudad/proveedor y puede fallar con VPN, CGNAT, IP móvil o redes corporativas. La ciudad se puede cambiar a mano.
 - En Android anterior a 11 no hay `ApplicationExitInfo`: el motivo de la última salida puede quedar como “desconocida”. El PSS es una tendencia, no una medida exacta.
 - La app es solo horizontal y no arranca sola tras un reinicio o un corte de luz.

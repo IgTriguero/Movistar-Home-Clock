@@ -198,6 +198,41 @@ public class SourceContractTest {
     }
 
     @Test
+    public void scores365GameDetailServesEventsAndLineups() throws Exception {
+        requireContract();
+
+        Match finished = null;
+        LocalDate today = LocalDate.now();
+        for (int i = 0; i <= 7 && finished == null; i++) {
+            SourceResult<List<Match>> result =
+                    new Scores365Source().fetch(today.minusDays(i));
+            if (result.state != SourceState.OK || result.data == null) continue;
+            for (Match candidate : result.data) {
+                if (candidate != null && candidate.id > 0
+                        && candidate.isFinished()
+                        && "Fútbol".equals(candidate.sport)) {
+                    finished = candidate;
+                    break;
+                }
+            }
+        }
+        assumeTrue("No hay partido de fútbol finalizado en 365Scores", finished != null);
+
+        SourceResult<MatchDetail> result = MatchDetailClient.fetch(finished, true);
+        assertEquals(SourceState.OK, result.state);
+        MatchDetail detail = result.data;
+        assertNotNull("El detalle no puede ser nulo", detail);
+        assertTrue("El detalle no trae eventos", detail.hasEvents());
+        assertTrue("El detalle no trae alineaciones", detail.hasLineups());
+        assertTrue("El detalle no trae estadio ni árbitro",
+                detail.venue != null || !detail.officials.isEmpty());
+        if (detail.hasStats()) {
+            assertFalse("El detalle dice tener stats pero no hay categorías",
+                    detail.statCategories.isEmpty());
+        }
+    }
+
+    @Test
     public void rfefJourneyCalendarStillMatchesParser() throws Exception {
         requireContract();
 

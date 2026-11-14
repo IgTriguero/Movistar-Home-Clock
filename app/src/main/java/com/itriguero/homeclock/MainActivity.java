@@ -72,6 +72,8 @@ public class MainActivity extends Activity {
     private TextView matchSources;
 
     private MatchRepository matchRepository;
+    private MatchDetailRepository matchDetailRepository;
+    private MatchDetailDialog matchDetailDialog;
     private DiagnosticsStore diagnosticsStore;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -211,6 +213,7 @@ public class MainActivity extends Activity {
         matchSources = findViewById(R.id.matchSources);
 
         matchRepository = new MatchRepository(getApplicationContext());
+        matchDetailRepository = new MatchDetailRepository(this);
         // Idempotente: HomeClockApp ya lo arrancó; aquí solo se recupera.
         diagnosticsStore = DiagnosticsStore.get(this);
 
@@ -262,6 +265,7 @@ public class MainActivity extends Activity {
         diagnosticsStore.onForeground(System.currentTimeMillis());
         hideSystemBars();
         loadNightConfig();
+        if (matchDetailDialog != null) matchDetailDialog.onActivityResumed();
 
         long now = System.currentTimeMillis();
         String previousListSignature = cityList.signature();
@@ -329,6 +333,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         resumed = false;
+        if (matchDetailDialog != null) matchDetailDialog.onActivityPaused();
         handler.removeCallbacks(locationRetry);
         long now = System.currentTimeMillis();
         diagnosticsStore.onBackground(now);
@@ -345,6 +350,14 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         running = false;
+        if (matchDetailDialog != null) {
+            matchDetailDialog.dismiss();
+            matchDetailDialog = null;
+        }
+        if (matchDetailRepository != null) {
+            matchDetailRepository.close();
+            matchDetailRepository = null;
+        }
         handler.removeCallbacks(tick);
         handler.removeCallbacks(weatherTick);
         handler.removeCallbacks(matchesTick);
@@ -1177,7 +1190,13 @@ public class MainActivity extends Activity {
         block.setLayoutParams(new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT));
-        block.setPadding(0, dp(2), 0, dp(2));
+        block.setPadding(dp(8), dp(4), dp(8), dp(4));
+        block.setMinimumHeight(dp(148));
+        block.setClickable(true);
+        block.setFocusable(true);
+        block.setBackgroundResource(R.drawable.bg_search_result);
+        block.setContentDescription(matchRowDescription(m, contextText));
+        block.setOnClickListener(v -> openMatchDetail(m));
 
         TextView context = new TextView(this);
         context.setText(contextText);
@@ -1187,6 +1206,7 @@ public class MainActivity extends Activity {
         context.setSingleLine(true);
         context.setEllipsize(TextUtils.TruncateAt.END);
         context.setPadding(0, 0, 0, dp(2));
+        context.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         block.addView(context, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT));
@@ -1195,8 +1215,9 @@ public class MainActivity extends Activity {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(0, dp(4), 0, dp(4));
-        row.setContentDescription(m.homeName + " contra " + m.awayName
-                + (contextText.isEmpty() ? "" : ", " + contextText));
+        // El bloque ya describe el partido: no se duplican los hijos.
+        row.setImportantForAccessibility(
+                View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
 
         LinearLayout left = new LinearLayout(this);
         left.setOrientation(LinearLayout.VERTICAL);
@@ -1238,6 +1259,53 @@ public class MainActivity extends Activity {
         block.addView(row, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(128)));
         matchList.addView(block);
+    }
+
+    /**
+     * Abre el modal de detalle. Solo se llama desde una fila de partido, nunca
+     * desde el panel de error; si ya había otro abierto, lo cierra primero.
+     */
+    private void openMatchDetail(Match m) {
+        if (!running || isFinishing() || isDestroyed() || m == null) return;
+        if (matchDetailRepository == null) return;
+
+        if (matchDetailDialog != null) {
+            matchDetailDialog.dismiss();
+            matchDetailDialog = null;
+        }
+
+        MatchDetailDialog dialog = new MatchDetailDialog(this, m, matchDetailRepository);
+        dialog.setOnClosedListener(() -> {
+            if (matchDetailDialog == dialog) matchDetailDialog = null;
+        });
+        matchDetailDialog = dialog;
+        dialog.show();
+    }
+
+    private String matchRowDescription(Match m, String contextText) {
+        String competition = contextText.isEmpty()
+                ? getString(R.string.matches_subtitle) : contextText;
+        return getString(R.string.match_detail_row_desc,
+                m.homeName == null ? "" : m.homeName,
+                m.awayName == null ? "" : m.awayName,
+                competition, matchRowStatus(m));
+    }
+
+    private String matchRowStatus(Match m) {
+        if (m.isInPlay()) {
+            return getString(R.string.matches_live) + " " + scoreLabel(m);
+        }
+        if (m.isFinished()) {
+            return finishedLabel(m) + " " + scoreLabel(m);
+        }
+        if (m.isScheduled()) {
+            return m.timeTbd
+                    ? getString(R.string.matches_hour_tbd)
+                    : kickoffFormat.format(new Date(m.startMillis));
+        }
+        if (m.isPostponed()) return getString(R.string.matches_postponed);
+        if (m.isCancelled()) return getString(R.string.matches_cancelled);
+        return getString(R.string.dash);
     }
 
     private TextView teamNameView(Match m, boolean home, float sizeSp) {
