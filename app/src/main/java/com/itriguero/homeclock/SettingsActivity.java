@@ -24,6 +24,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Ajustes de la app: lista editable de ciudades, búsqueda, partidos y modo
@@ -42,6 +43,8 @@ public class SettingsActivity extends Activity {
     private Button searchButton;
     private TextView searchStatus;
     private LinearLayout searchResults;
+    private Button useLocationButton;
+    private TextView useLocationStatus;
     private ScrollView settingsScroll;
     private CheckBox showMatchesInput;
     private CheckBox nightEnabledInput;
@@ -61,7 +64,10 @@ public class SettingsActivity extends Activity {
 
     private final ExecutorService searchExecutor = Executors.newSingleThreadExecutor();
     private final ExecutorService updateExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService locationExecutor = Executors.newSingleThreadExecutor();
+    private final AtomicBoolean detectingLocation = new AtomicBoolean(false);
     private int searchToken;
+    private int locationToken;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -77,6 +83,8 @@ public class SettingsActivity extends Activity {
         searchButton = findViewById(R.id.searchButton);
         searchStatus = findViewById(R.id.searchStatus);
         searchResults = findViewById(R.id.searchResults);
+        useLocationButton = findViewById(R.id.useLocationButton);
+        useLocationStatus = findViewById(R.id.useLocationStatus);
         settingsScroll = findViewById(R.id.settingsScroll);
         showMatchesInput = findViewById(R.id.showMatches);
         nightEnabledInput = findViewById(R.id.nightEnabled);
@@ -115,6 +123,7 @@ public class SettingsActivity extends Activity {
         refreshNowButton.setOnClickListener(v -> requestRefreshNow());
         clearLogosButton.setOnClickListener(v -> clearLogoCache());
         searchButton.setOnClickListener(v -> startSearch());
+        useLocationButton.setOnClickListener(v -> startLocationDetection());
         cityQuery.setOnEditorActionListener((v, actionId, event) -> {
             if (actionId == EditorInfo.IME_ACTION_SEARCH) {
                 startSearch();
@@ -136,8 +145,10 @@ public class SettingsActivity extends Activity {
     @Override
     protected void onDestroy() {
         searchToken++;
+        locationToken++;
         searchExecutor.shutdownNow();
         updateExecutor.shutdownNow();
+        locationExecutor.shutdownNow();
         super.onDestroy();
     }
 
@@ -190,6 +201,101 @@ public class SettingsActivity extends Activity {
         });
     }
 
+    private void startLocationDetection() {
+        if (detectingLocation.get()) return;
+        if (cityList.isReadOnly()) {
+            showLocationStatus(R.string.settings_city_detect_readonly);
+            return;
+        }
+
+        final int token = ++locationToken;
+        detectingLocation.set(true);
+        useLocationButton.setEnabled(false);
+        useLocationButton.setText(R.string.settings_city_detecting);
+        useLocationStatus.setText(R.string.settings_city_detecting_status);
+        useLocationStatus.setVisibility(View.VISIBLE);
+
+        locationExecutor.execute(() -> {
+            try {
+                IpLocationClient.Result result = IpLocationClient.fetch();
+                runOnUiThread(() -> applyLocationResult(token, result));
+            } catch (IpLocationClient.IpLocationException e) {
+                runOnUiThread(() -> showLocationError(token, e));
+            }
+        });
+    }
+
+    /**
+     * Aplica la ciudad detectada con la misma semántica que el arranque:
+     * se reutiliza la entrada existente o se inserta al principio, sin borrar
+     * ninguna ciudad guardada.
+     */
+    private void applyLocationResult(int token, IpLocationClient.Result result) {
+        if (token != locationToken || isFinishing()) return;
+        detectingLocation.set(false);
+        resetLocationButton();
+
+        cityList = prefs.loadCities();
+        City detected = City.fromDetected(result);
+        CityList.DetectedResult promoted = cityList.promoteDetected(detected);
+
+        switch (promoted) {
+            case ADDED_FIRST:
+            case PROMOTED_EXISTING:
+                prefs.saveCities(cityList);
+                renderCityList();
+                showLocationStatus(getString(
+                        R.string.settings_city_detected, cityList.get(0).name));
+                break;
+            case ALREADY_FIRST:
+                prefs.saveCities(cityList);
+                renderCityList();
+                showLocationStatus(getString(
+                        R.string.settings_city_detected_existing, cityList.get(0).name));
+                break;
+            case FULL:
+                showLocationStatus(getString(R.string.settings_city_detect_full,
+                        detected == null ? "" : detected.name));
+                break;
+            case READ_ONLY:
+                showLocationStatus(R.string.settings_city_detect_readonly);
+                break;
+            default:
+                showLocationStatus(R.string.settings_city_detect_error);
+                break;
+        }
+    }
+
+    private void showLocationError(int token, IpLocationClient.IpLocationException error) {
+        if (token != locationToken || isFinishing()) return;
+        detectingLocation.set(false);
+        resetLocationButton();
+
+        if (error.kind == IpLocationClient.IpLocationException.Kind.OFFLINE
+                || error.kind == IpLocationClient.IpLocationException.Kind.TIMEOUT) {
+            showLocationStatus(R.string.settings_city_detect_offline);
+        } else if (error.kind == IpLocationClient.IpLocationException.Kind.HTTP
+                && error.httpStatus == 429) {
+            showLocationStatus(R.string.settings_city_detect_unavailable);
+        } else {
+            showLocationStatus(R.string.settings_city_detect_error);
+        }
+    }
+
+    private void resetLocationButton() {
+        useLocationButton.setEnabled(true);
+        useLocationButton.setText(R.string.settings_city_detect);
+    }
+
+    private void showLocationStatus(int stringRes) {
+        showLocationStatus(getString(stringRes));
+    }
+
+    private void showLocationStatus(CharSequence text) {
+        useLocationStatus.setText(text);
+        useLocationStatus.setVisibility(View.VISIBLE);
+    }
+
     private void renderCityList() {
         int scrollY = settingsScroll.getScrollY();
         cityListContainer.removeAllViews();
@@ -217,12 +323,8 @@ public class SettingsActivity extends Activity {
             detailView.setVisibility(detail.isEmpty() ? View.GONE : View.VISIBLE);
 
             List<String> badges = new ArrayList<>();
-            if (i == 0) badges.add(getString(R.string.settings_city_badge_default));
             if (i == selectedIndex) {
                 badges.add(getString(R.string.settings_city_badge_current));
-            }
-            if (city.source == City.Source.DETECTED) {
-                badges.add(getString(R.string.settings_city_badge_detected));
             }
             TextView badgesView = row.findViewById(R.id.cityBadges);
             badgesView.setText(TextUtils.join(" · ", badges));

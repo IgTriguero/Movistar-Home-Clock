@@ -27,6 +27,7 @@ La app es **standalone**: no hay backend propio, cuenta de usuario ni analítica
 ```text
 MainActivity
   ├── reloj/fecha (tick de 1 s)
+  ├── detección de ciudad por IP (al arrancar + reintentos)
   ├── tiempo (WeatherRepository multi-ciudad, cada 15 min)
   ├── pager de ciudades (swipe + dots)
   ├── partidos (MatchRepository, refresco adaptativo)
@@ -45,6 +46,7 @@ SettingsActivity
 | `MainActivity` | Pantalla principal, ciclo de refresco, render del panel y avisos. |
 | `SettingsActivity` | Ajustes, lista de ciudades y diagnóstico. |
 | `City` / `CityList` / `CityListCodec` | Modelo, orden, selección y JSON de ciudades (`cities_v2`). |
+| `IpLocationClient` | Detección de ciudad por IP con `ipwho.is`, normalización y errores tipados. |
 | `WeatherRepository` | Fetch multi-ciudad, merge de caché v2 y fallback offline. |
 | `WeatherPager` / `PageDotsView` | Paginador táctil del tiempo y puntos de posición. |
 | `MatchRepository` | Ejecuta las fuentes en paralelo, fusiona, deduplica y aplica caché. |
@@ -67,6 +69,7 @@ SettingsActivity
 | Celta `rccelta.es` | Copa de la Reina de As Celtas | JSON de WordPress (`admin-ajax.php`) |
 | Open-Meteo `api.open-meteo.com` | Tiempo actual | JSON |
 | Open-Meteo Geocoding | Buscador de ciudades | JSON |
+| ipwho.is | Ciudad estimada por IP (primera ciudad / botón manual) | JSON |
 
 - 365Scores se consulta por `competitors` (IDs `131,174,108,5050,204`), `langId=14` y zona `Europe/Madrid`.
 - RFEF y Celta guardan un calendario compacto en el dispositivo para no repetir peticiones.
@@ -150,7 +153,7 @@ Cada 5 minutos se aplica un desplazamiento de hasta ±4 dp siguiendo un anillo d
 
 `SettingsActivity` incluye:
 
-- **Ciudades**: lista editable (máximo 8) con buscador de Open-Meteo. Se añaden, seleccionan, reordenan y eliminan; la primera es la ciudad por defecto. La selección y la lista se guardan al instante. La búsqueda corre en background y descarta respuestas obsoletas.
+- **Ciudades**: lista editable (máximo 8) con buscador de Open-Meteo. Se añaden, seleccionan, reordenan y eliminan; la primera es la ciudad actual y se actualiza al abrir la app. **Usar mi ubicación** lanza la detección por IP. La selección y la lista se guardan al instante. La búsqueda corre en background y descarta respuestas obsoletas.
 - **Partidos**: visibilidad del panel.
 - **Noche**: activación y franja `HH:mm` con validación.
 - **Diagnóstico**: última actualización, latencia, estado por fuente, caché, contadores de escudos, **Actualizar ahora** y **Borrar caché de escudos**.
@@ -169,16 +172,16 @@ Cada 5 minutos se aplica un desplazamiento de hasta ±4 dp siguiendo un anillo d
 
 ## 9. Calidad
 
-- **282 tests** unitarios: modelo, mapper, tiempo, temporada, kickoff, refresco, caché, repositorio, `SourceResult`, diagnóstico, pixel shift, caché de escudos, ciudades, caché v2, pager y contrato.
+- **322 tests** unitarios: modelo, mapper, tiempo, temporada, kickoff, refresco, caché, repositorio, `SourceResult`, diagnóstico, pixel shift, caché de escudos, ciudades, caché v2, pager, detección IP y contrato.
 - **Contrato diario** con datos reales de 365Scores, Open-Meteo, RFEF y Celta.
 - **Soak test**: `tools/soak.sh` muestrea PID, PSS, actividad en primer plano y crashes/ANRs durante 72 h.
 - **Lint**: 0 errores; quedan avisos menores de rendimiento/estilo.
-- **Fixtures**: 365Scores, Celta, jornadas RFEF, geocoding de Vigo y Open-Meteo multi-ciudad.
+- **Fixtures**: 365Scores, Celta, jornadas RFEF, geocoding de Vigo, Open-Meteo multi-ciudad e ipwho.is.
 
 ## 10. Limitaciones
 
 - Los equipos seguidos están fijados en código; no hay pantalla para añadirlos o quitarlos.
-- La primera ciudad se elige a mano; la detección por IP está en el backlog.
+- La detección por IP es aproximada a nivel de ciudad/proveedor y puede fallar con VPN, CGNAT, IP móvil o redes corporativas. La ciudad se puede cambiar a mano.
 - La app es solo horizontal y no arranca sola tras reinicio o corte de luz.
 - No hay kiosco ni launcher.
 - Las fuentes no son APIs oficiales; un cambio de HTML/JSON puede requerir actualizar un parser.
@@ -190,7 +193,7 @@ Cada 5 minutos se aplica un desplazamiento de hasta ±4 dp siguiendo un anillo d
 El detalle vivo, con notas de viabilidad, está en [`docs/BACKLOG.md`](docs/BACKLOG.md). Resumen:
 
 1. ✅ Varias ciudades guardadas con swipe en la zona del tiempo.
-2. Primera ciudad detectada por IP, con botón manual “Usar mi ubicación”.
+2. ✅ Primera ciudad detectada por IP, con botón manual “Usar mi ubicación”.
 3. Detalle de partido en un modal (goles, tarjetas, cambios, alineaciones y estadísticas).
 4. Dónde ver cada partido en España.
 5. Configuración de equipos desde la app (quitar IDs hardcodeados).

@@ -1,5 +1,6 @@
 package com.itriguero.homeclock;
 
+import java.text.Normalizer;
 import java.util.Locale;
 
 /**
@@ -16,6 +17,8 @@ final class City {
 
     private static final int MAX_NAME_LENGTH = 80;
     private static final double KEY_ROUNDING_THRESHOLD = 0.0005;
+    private static final double EARTH_RADIUS_KM = 6371.0088;
+    private static final double SAME_PLACE_KM = 25.0;
 
     enum Source {
         DEFAULT("default"),
@@ -100,6 +103,53 @@ final class City {
         if (result == null) return null;
         return new City(result.name, result.admin1, result.country,
                 result.lat, result.lon, source);
+    }
+
+    /** Convierte la detección por IP en una ciudad más de la lista. */
+    static City fromDetected(IpLocationClient.Result result) {
+        if (result == null) return null;
+        return new City(result.city, result.region, result.country,
+                result.lat, result.lon, Source.DETECTED);
+    }
+
+    /**
+     * Normaliza un nombre para comparar variantes con y sin tildes
+     * ("San José" y "San Jose"). No se usa como clave persistida.
+     */
+    static String normalizeName(String name) {
+        if (name == null) return "";
+        String decomposed = Normalizer.normalize(name, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "");
+        String lower = decomposed.toLowerCase(Locale.ROOT);
+        return lower.replaceAll("[^\\p{L}\\p{N}]+", " ")
+                .trim()
+                .replaceAll("\\s+", " ");
+    }
+
+    /** Distancia ortodrómica en kilómetros (Haversine). */
+    static double distanceKm(double lat1, double lon1, double lat2, double lon2) {
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLon = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        // El redondeo puede dejar a fuera de [0,1] y producir NaN en asin.
+        double clamped = Math.max(0.0, Math.min(1.0, a));
+        return 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(clamped));
+    }
+
+    /**
+     * true si ambas entradas representan el mismo sitio. Solo se usa para la
+     * detección por IP: la búsqueda manual sigue deduplicando por {@link #key()}.
+     */
+    boolean samePlace(City other) {
+        if (other == null) return false;
+        if (key().equals(other.key())) return true;
+
+        String ownName = normalizeName(name);
+        String otherName = normalizeName(other.name);
+        if (ownName.isEmpty() || !ownName.equals(otherName)) return false;
+        return distanceKm(lat, lon, other.lat, other.lon) <= SAME_PLACE_KM;
     }
 
     static City defaultCity() {

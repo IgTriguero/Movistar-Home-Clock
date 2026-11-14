@@ -239,6 +239,165 @@ public class CityListTest {
         assertFalse(list(city("A", 40.0, -3.0)).isReadOnly());
     }
 
+    @Test
+    public void promoteDetectedKeepsOrderWhenAlreadyFirst() {
+        City tresCantos = city("Tres Cantos", 40.6009, -3.7086);
+        City vigo = city("Vigo", 42.23282, -8.72264);
+        CityList list = list(tresCantos, vigo);
+        assertTrue(list.select(vigo.key()));
+
+        assertEquals(CityList.DetectedResult.ALREADY_FIRST,
+                list.promoteDetected(city("Tres Cantos", 40.6009, -3.7086)));
+
+        assertEquals(List.of("Tres Cantos", "Vigo"), names(list));
+        assertEquals(tresCantos.key(), list.selectedKey());
+    }
+
+    @Test
+    public void promoteDetectedMovesExistingToFirstWithoutChangingIt() {
+        City tresCantos = city("Tres Cantos", 40.6009, -3.7086);
+        City vigo = city("Vigo", 42.23282, -8.72264);
+        CityList list = list(tresCantos, vigo);
+        City detected = new City("Vigo", "", "España",
+                42.23282, -8.72264, City.Source.DETECTED);
+
+        assertEquals(CityList.DetectedResult.PROMOTED_EXISTING,
+                list.promoteDetected(detected));
+
+        assertEquals(List.of("Vigo", "Tres Cantos"), names(list));
+        assertEquals(vigo.key(), list.selectedKey());
+        assertEquals(City.Source.MANUAL, list.get(0).source);
+    }
+
+    @Test
+    public void promoteDetectedInsertsNewCityFirstAndSelectsIt() {
+        City tresCantos = city("Tres Cantos", 40.6009, -3.7086);
+        City vigo = city("Vigo", 42.23282, -8.72264);
+        CityList list = list(tresCantos, vigo);
+        City barcelona = new City("Barcelona", "", "España",
+                41.3874, 2.1686, City.Source.DETECTED);
+
+        assertEquals(CityList.DetectedResult.ADDED_FIRST,
+                list.promoteDetected(barcelona));
+
+        assertEquals(List.of("Barcelona", "Tres Cantos", "Vigo"), names(list));
+        assertEquals(barcelona.key(), list.selectedKey());
+        assertEquals(3, list.size());
+    }
+
+    @Test
+    public void promoteDetectedOnFullListDoesNotAddNewCity() {
+        CityList list = fullList();
+        String signature = list.signature();
+        City selected = list.selected();
+
+        assertEquals(CityList.DetectedResult.FULL,
+                list.promoteDetected(city("Nueva", 10.0, 10.0)));
+
+        assertEquals(8, list.size());
+        assertEquals(signature, list.signature());
+        assertEquals(selected.key(), list.selectedKey());
+    }
+
+    @Test
+    public void promoteDetectedOnFullListMovesExistingToFirst() {
+        CityList list = fullList();
+        City last = list.get(7);
+
+        assertEquals(CityList.DetectedResult.PROMOTED_EXISTING,
+                list.promoteDetected(last));
+
+        assertEquals(8, list.size());
+        assertEquals(last.key(), list.get(0).key());
+        assertEquals(last.key(), list.selectedKey());
+    }
+
+    @Test
+    public void promoteDetectedOnFullListKeepsExistingFirst() {
+        CityList list = fullList();
+        City first = list.get(0);
+
+        assertEquals(CityList.DetectedResult.ALREADY_FIRST,
+                list.promoteDetected(first));
+
+        assertEquals(8, list.size());
+        assertEquals(first.key(), list.get(0).key());
+        assertEquals(first.key(), list.selectedKey());
+    }
+
+    @Test
+    public void promoteDetectedOnReadOnlyListDoesNotMutate() {
+        City a = city("A", 40.0, -3.0);
+        City b = city("B", 41.0, -4.0);
+        CityList list = new CityList(List.of(a, b), a.key(), true);
+
+        assertEquals(CityList.DetectedResult.READ_ONLY,
+                list.promoteDetected(city("Nueva", 10.0, 10.0)));
+
+        assertEquals(List.of("A", "B"), names(list));
+        assertEquals(a.key(), list.selectedKey());
+    }
+
+    @Test
+    public void promoteDetectedRejectsInvalidCity() {
+        CityList list = list(city("A", 40.0, -3.0));
+
+        assertEquals(CityList.DetectedResult.INVALID, list.promoteDetected(null));
+        assertEquals(CityList.DetectedResult.INVALID,
+                list.promoteDetected(new City("", "", "", 40, -3,
+                        City.Source.DETECTED)));
+        assertEquals(CityList.DetectedResult.INVALID,
+                list.promoteDetected(city("Mal", Double.NaN, 0)));
+        assertEquals(1, list.size());
+    }
+
+    @Test
+    public void promoteDetectedDeduplicatesByNameAndDistance() {
+        City tresCantos = city("Tres Cantos", 40.6009, -3.7086);
+        City sanJose = city("San José", 42.0, -8.0);
+        CityList list = list(tresCantos, sanJose);
+        City detected = new City("San Jose", "Galicia", "España",
+                42.05, -8.0, City.Source.DETECTED);
+
+        assertEquals(CityList.DetectedResult.PROMOTED_EXISTING,
+                list.promoteDetected(detected));
+
+        assertEquals(2, list.size());
+        assertEquals(List.of("San José", "Tres Cantos"), names(list));
+        assertEquals(sanJose.key(), list.selectedKey());
+        assertEquals(City.Source.MANUAL, list.get(0).source);
+    }
+
+    @Test
+    public void promoteDetectedAddsSameNameWhenItIsFarAway() {
+        CityList list = list(city("Vigo", 42.23282, -8.72264));
+        City vigoArgentina = new City("Vigo", "", "Argentina",
+                -34.6037, -58.3816, City.Source.DETECTED);
+
+        assertEquals(CityList.DetectedResult.ADDED_FIRST,
+                list.promoteDetected(vigoArgentina));
+
+        assertEquals(2, list.size());
+        assertEquals(vigoArgentina.key(), list.selectedKey());
+    }
+
+    @Test
+    public void addStillDeduplicatesOnlyByKey() {
+        CityList list = list(city("Tres Cantos", 40.6009, -3.7086));
+
+        assertEquals(CityList.AddResult.ADDED,
+                list.add(city("Tres Cantos", 40.601, -3.708)));
+        assertEquals(2, list.size());
+    }
+
+    private static CityList fullList() {
+        City[] cities = new City[CityList.MAX_CITIES];
+        for (int i = 0; i < cities.length; i++) {
+            cities[i] = city("C" + i, 40.0 + i, -3.0 + i);
+        }
+        return list(cities);
+    }
+
     private static CityList list(City... cities) {
         return new CityList(List.of(cities), cities[0].key());
     }

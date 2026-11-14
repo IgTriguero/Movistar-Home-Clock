@@ -8,12 +8,10 @@
 
     <!-- Ciudades -->
     <string name="settings_section_cities">Ciudades</string>
-    <string name="settings_cities_help">La primera es la ciudad por defecto. Desliza en el reloj para cambiar.</string>
+    <string name="settings_cities_help">La primera es la ciudad actual. Se actualiza al iniciar la app; desliza en el reloj para cambiar.</string>
     <string name="settings_cities_count">%1$d / %2$d</string>
     <string name="settings_cities_add_label">Añadir ciudad</string>
-    <string name="settings_city_badge_default">Por defecto</string>
     <string name="settings_city_badge_current">Actual</string>
-    <string name="settings_city_badge_detected">Detectada</string>
     <string name="settings_city_row_desc">Seleccionar %1$s, posición %2$d de %3$d</string>
     <string name="settings_city_move_up_desc">Subir %1$s</string>
     <string name="settings_city_move_down_desc">Bajar %1$s</string>
@@ -32,6 +30,18 @@
     <string name="settings_city_remove_confirm">Eliminar</string>
     <string name="settings_city_removed">Ciudad eliminada: %1$s</string>
     <string name="settings_city_result_added">%1$s · ya añadida</string>
+    <string name="settings_city_detect">Usar mi ubicación</string>
+    <string name="settings_city_detecting">Detectando…</string>
+    <string name="settings_city_detecting_status">Consultando la ubicación aproximada…</string>
+    <string name="settings_city_detect_help">Consulta tu IP a ipwho.is. No se envía la ubicación del dispositivo.</string>
+    <string name="settings_city_detected">Ciudad detectada: %1$s</string>
+    <string name="settings_city_detected_existing">Ya estaba en la lista: %1$s</string>
+    <string name="settings_city_detect_full">Máximo 8 ciudades. Elimina una para añadir %1$s.</string>
+    <string name="settings_city_detect_offline">Sin conexión. Prueba a buscar la ciudad manualmente.</string>
+    <string name="settings_city_detect_error">No se pudo detectar la ciudad. Prueba a buscarla manualmente.</string>
+    <string name="settings_city_detect_unavailable">El servicio de ubicación no está disponible ahora.</string>
+    <string name="settings_city_detect_readonly">La lista viene de una versión más nueva y no se puede modificar.</string>
+    <string name="settings_city_detect_desc">Detectar la ciudad por la conexión a Internet, sin GPS</string>
 
     <string name="settings_city_hint">Busca una ciudad o pueblo</string>
     <string name="settings_search">Buscar</string>

@@ -20,6 +20,8 @@ final class CityList {
 
     enum RemoveResult { REMOVED, NOT_FOUND, LAST }
 
+    enum DetectedResult { ADDED_FIRST, PROMOTED_EXISTING, ALREADY_FIRST, FULL, INVALID, READ_ONLY }
+
     private final List<City> cities;
     private final boolean readOnly;
     private String selectedKey;
@@ -105,6 +107,35 @@ final class CityList {
         return AddResult.ADDED;
     }
 
+    /**
+     * Lleva al primer puesto la ciudad detectada por IP sin borrar ninguna otra.
+     * Si ya existe (misma clave o mismo sitio) se reutiliza la entrada existente
+     * y se conservan su nombre y su origen; si es nueva y hay hueco, se inserta
+     * al principio. Con la lista llena no se añade nada.
+     */
+    DetectedResult promoteDetected(City detected) {
+        if (readOnly) return DetectedResult.READ_ONLY;
+        if (detected == null || !detected.isValid()) return DetectedResult.INVALID;
+
+        int index = indexOfSamePlace(detected);
+        if (index == 0) {
+            City existing = cities.get(0);
+            select(existing.key());
+            return DetectedResult.ALREADY_FIRST;
+        }
+        if (index > 0) {
+            City existing = cities.get(index);
+            move(index, 0);
+            select(existing.key());
+            return DetectedResult.PROMOTED_EXISTING;
+        }
+        if (cities.size() >= MAX_CITIES) return DetectedResult.FULL;
+
+        cities.add(0, detected);
+        select(detected.key());
+        return DetectedResult.ADDED_FIRST;
+    }
+
     RemoveResult remove(String key) {
         int index = indexOf(key);
         if (index < 0) return RemoveResult.NOT_FOUND;
@@ -164,5 +195,19 @@ final class CityList {
             }
         }
         return city.name;
+    }
+
+    /**
+     * Índice de la entrada que representa el mismo sitio: misma clave o mismo
+     * nombre normalizado a menos de 25 km. La búsqueda manual no usa esto.
+     */
+    private int indexOfSamePlace(City detected) {
+        for (int i = 0; i < cities.size(); i++) {
+            City existing = cities.get(i);
+            if (existing.key().equals(detected.key()) || existing.samePlace(detected)) {
+                return i;
+            }
+        }
+        return -1;
     }
 }

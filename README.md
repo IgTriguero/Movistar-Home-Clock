@@ -9,6 +9,7 @@ App Android ligera para un **Movistar Home RG3205W** en horizontal. Muestra un r
 - **Reloj** grande `HH:mm` y fecha en español.
 - **Tiempo actual** con Open-Meteo: temperatura, sensación, humedad y viento.
 - **Varias ciudades guardadas** con una sola petición para todas; se cambia de ciudad deslizando en el bloque de tiempo.
+- **Primera ciudad por IP al iniciar la app**, sin GPS ni permisos: si ya estaba guardada se mueve al primer puesto y, si es nueva, se añade delante sin borrar ninguna. También hay un botón manual **Usar mi ubicación**.
 - **Buscador de ciudades y pueblos**; no hay que escribir latitud ni longitud.
 - **Modo noche** configurable: atenúa la pantalla en una franja horaria.
 - **Panel de partidos** con escudos, marcador y estado:
@@ -63,7 +64,7 @@ Sí. El wrapper fija Gradle 8.5 y permite que cualquiera compile con `./gradlew`
 
 ## Ajustes
 
-- **Ciudades**: lista editable (hasta 8). Se añaden con el buscador, se seleccionan tocando una fila y se reordenan o eliminan con los botones. La primera es la ciudad por defecto y la seleccionada se conserva entre arranques.
+- **Ciudades**: lista editable (hasta 8). Se añaden con el buscador, se seleccionan tocando una fila y se reordenan o eliminan con los botones. La primera es la ciudad actual y se actualiza al abrir la app; **Usar mi ubicación** fuerza la detección por IP. La seleccionada se conserva entre arranques.
 - **Partidos**: mostrar u ocultar el panel.
 - **Noche**: activar y definir inicio/fin (`HH:mm`). La franja puede cruzar medianoche. Si inicio y fin coinciden, no se aplica.
 - **Diagnóstico**: última actualización, latencia, estado de cada fuente, antigüedad de la caché, contadores de escudos y botones **Actualizar ahora** y **Borrar caché de escudos**.
@@ -101,7 +102,7 @@ Guarda una copia de `keys/homeclock-release.jks` y sus contraseñas. Sin esa cla
 
 ## Calidad
 
-- **282 tests** unitarios con JUnit y fixtures de las fuentes.
+- **322 tests** unitarios con JUnit y fixtures de las fuentes.
 - **Contrato diario** contra 365Scores, Open-Meteo, RFEF y Celta.
 - **Soak test** de 72 h: `tools/soak.sh` muestrea PID, PSS, actividad en primer plano y crashes/ANRs. Ver [`docs/SOAK.md`](docs/SOAK.md).
 - **Lint** sin errores; solo quedan avisos menores de rendimiento/estilo (pesos anidados y carpeta de icono adaptativo).
@@ -114,6 +115,7 @@ app/src/main/java/com/itriguero/homeclock/
   MainActivity.java          reloj, tiempo, panel y ciclo de refresco
   SettingsActivity.java      ajustes, lista de ciudades y diagnóstico
   City / CityList            modelo y lista ordenada de ciudades
+  IpLocationClient           detección de ciudad por IP (ipwho.is)
   WeatherRepository          fetch multi-ciudad, caché v2 y fallback
   WeatherPager / PageDots    paginador táctil del bloque de tiempo
   MatchRepository.java       orquestación, merge y caché de partidos
@@ -131,10 +133,15 @@ tools/                       harness de soak
 ## Fuentes y privacidad
 
 - [Open-Meteo](https://open-meteo.com/) para tiempo y geocoding.
+- [ipwho.is](https://ipwho.is/) para estimar la ciudad a partir de la IP pública.
 - [365Scores](https://www.365scores.com/) para fútbol y baloncesto.
 - [RFEF](https://www.rfef.es/) y la web del Celta para As Celtas.
 
-Son APIs y páginas públicas no oficiales: pueden cambiar sin aviso. La app no envía datos personales, no usa cuentas y no incluye analítica. El tiempo envía a Open-Meteo las coordenadas de las ciudades guardadas (hasta 8); no se envía la ubicación del dispositivo.
+Son APIs y páginas públicas no oficiales: pueden cambiar sin aviso. La app no usa cuentas ni analítica.
+
+**Detección de ciudad por IP.** Al iniciar la app se consulta `ipwho.is` una vez (hasta tres intentos si falla) para estimar la ciudad a partir de la IP pública; después solo se repite si pulsas **Usar mi ubicación**. No se envía la ubicación del dispositivo, ni identificadores, ni la lista de ciudades: el servicio ve la IP pública y el `User-Agent`, como cualquier web que se visita. La ciudad detectada se guarda como una más, se puede editar o borrar y no sustituye a las ciudades manuales.
+
+El tiempo envía a Open-Meteo las coordenadas de las ciudades guardadas (hasta 8); no se envía la ubicación del dispositivo.
 
 ## Ideas y pendientes
 
@@ -143,7 +150,7 @@ El backlog vivo, con la viabilidad técnica de cada propuesta, está en [`docs/B
 ## Limitaciones
 
 - Los equipos seguidos están fijados en código; la configuración desde la app queda para una versión posterior.
-- La primera ciudad se elige a mano; la detección por IP está en el backlog.
+- La detección por IP es aproximada a nivel de ciudad/proveedor y puede fallar con VPN, CGNAT, IP móvil o redes corporativas. La ciudad se puede cambiar a mano.
 - La app es solo horizontal y no arranca sola tras un reinicio o un corte de luz.
 - No hay *kiosco* ni launcher: se abre a mano.
 - Tras una actualización, Android 15 no permite que la app se reabra sola desde el instalador.

@@ -103,6 +103,36 @@
                 tools:text="Ahora: Vigo"
                 tools:visibility="visible" />
 
+            <Button
+                android:id="@+id/useLocationButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:backgroundTint="#555555"
+                android:contentDescription="@string/settings_city_detect_desc"
+                android:minHeight="48dp"
+                android:minWidth="48dp"
+                android:text="@string/settings_city_detect"
+                android:textColor="#FFFFFF" />
+
+            <TextView
+                android:id="@+id/useLocationStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:accessibilityLiveRegion="polite"
+                android:textColor="#E0A85A"
+                android:textSize="15sp"
+                android:visibility="gone" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="@string/settings_city_detect_help"
+                android:textColor="#808080"
+                android:textSize="13sp" />
+
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

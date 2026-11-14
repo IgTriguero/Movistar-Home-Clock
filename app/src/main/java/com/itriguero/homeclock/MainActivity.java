@@ -47,6 +47,9 @@ public class MainActivity extends Activity {
     private static final long BROWSE_TIMEOUT_MS = 60 * 1000L;
     private static final long UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000L;
     private static final long UPDATE_SNOOZE_MS = 24 * 60 * 60 * 1000L;
+    private static final int LOCATION_MAX_ATTEMPTS = 3;
+    private static final long LOCATION_RETRY_1_MS = 15 * 60 * 1000L;
+    private static final long LOCATION_RETRY_2_MS = 2 * 60 * 60 * 1000L;
 
     private TextView clock;
     private TextView date;
@@ -75,6 +78,7 @@ public class MainActivity extends Activity {
     private final ExecutorService matchesExecutor = Executors.newSingleThreadExecutor();
     private final ExecutorService logoExecutor = Executors.newFixedThreadPool(3);
     private final ExecutorService updateExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService locationExecutor = Executors.newSingleThreadExecutor();
     private final SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm", Locale.getDefault());
     private final SimpleDateFormat dateFormat =
             new SimpleDateFormat("EEEE, d 'de' MMMM", new Locale("es", "ES"));
@@ -85,9 +89,14 @@ public class MainActivity extends Activity {
     private final List<MatchRow> matchRows = new ArrayList<>();
     private final AtomicBoolean fetchingMatches = new AtomicBoolean(false);
     private final AtomicBoolean fetchingUpdate = new AtomicBoolean(false);
+    private final AtomicBoolean detectingLocation = new AtomicBoolean(false);
     private final KickoffGuard kickoffGuard = new KickoffGuard();
 
     private boolean running = true;
+    private boolean resumed;
+    private int locationAttempts;
+    private boolean locationDone;
+    private long locationNextAttemptAt;
     private boolean showMatches = true;
     private boolean panelHidden;
     private String hiddenSignature = "";
@@ -155,6 +164,8 @@ public class MainActivity extends Activity {
             refreshMatches();
         }
     };
+
+    private final Runnable locationRetry = () -> maybeDetectLocation();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -241,6 +252,7 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         running = true;
+        resumed = true;
         hideSystemBars();
         loadNightConfig();
 
@@ -304,6 +316,14 @@ public class MainActivity extends Activity {
         applyPixelShift();
         applyNightMode();
         maybeCheckForUpdates();
+        handler.post(this::maybeDetectLocation);
+    }
+
+    @Override
+    protected void onPause() {
+        resumed = false;
+        handler.removeCallbacks(locationRetry);
+        super.onPause();
     }
 
     @Override
@@ -319,12 +339,97 @@ public class MainActivity extends Activity {
         handler.removeCallbacks(weatherTick);
         handler.removeCallbacks(matchesTick);
         handler.removeCallbacks(browseTimeout);
+        handler.removeCallbacks(locationRetry);
         executor.shutdownNow();
         matchesExecutor.shutdownNow();
         updateExecutor.shutdownNow();
+        locationExecutor.shutdownNow();
         if (matchRepository != null) matchRepository.close();
         logoExecutor.shutdownNow();
         super.onDestroy();
+    }
+
+    /**
+     * Detección de la ciudad actual por IP una vez por arranque en frío.
+     * Los reintentos solo se programan para errores recuperables y se
+     * cancelan al pausar la Activity.
+     */
+    private void maybeDetectLocation() {
+        if (locationDone || detectingLocation.get() || !resumed || !running) return;
+
+        if (cityList.isReadOnly()) {
+            locationDone = true;
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        if (now < locationNextAttemptAt) {
+            handler.postDelayed(locationRetry, locationNextAttemptAt - now);
+            return;
+        }
+        if (locationAttempts >= LOCATION_MAX_ATTEMPTS) {
+            locationDone = true;
+            return;
+        }
+
+        locationAttempts++;
+        detectingLocation.set(true);
+        locationExecutor.execute(() -> {
+            try {
+                IpLocationClient.Result result = IpLocationClient.fetch();
+                runOnUiThread(() -> onLocationDetected(result));
+            } catch (IpLocationClient.IpLocationException e) {
+                runOnUiThread(() -> onLocationFailed(e));
+            }
+        });
+    }
+
+    private void onLocationDetected(IpLocationClient.Result result) {
+        detectingLocation.set(false);
+        if (!running || !resumed) {
+            locationDone = true;
+            return;
+        }
+
+        CityList fresh = prefs.loadCities();
+        City detected = City.fromDetected(result);
+        CityList.DetectedResult promoted = fresh.promoteDetected(detected);
+
+        switch (promoted) {
+            case ADDED_FIRST:
+            case PROMOTED_EXISTING:
+            case ALREADY_FIRST:
+                prefs.saveCities(fresh);
+                cityList = fresh;
+                lastCitySignature = citySignature();
+                updateWeatherChrome();
+                refreshWeather();
+                break;
+            case FULL:
+                Toast.makeText(this,
+                        getString(R.string.settings_city_detect_full,
+                                detected == null ? "" : detected.name),
+                        Toast.LENGTH_LONG).show();
+                break;
+            default:
+                break;
+        }
+        locationDone = true;
+    }
+
+    private void onLocationFailed(IpLocationClient.IpLocationException error) {
+        detectingLocation.set(false);
+        if (!running) return;
+
+        if (IpLocationClient.isRetryable(error)
+                && locationAttempts < LOCATION_MAX_ATTEMPTS) {
+            long delay = locationAttempts == 1
+                    ? LOCATION_RETRY_1_MS : LOCATION_RETRY_2_MS;
+            locationNextAttemptAt = System.currentTimeMillis() + delay;
+            handler.postDelayed(locationRetry, delay);
+        } else {
+            locationDone = true;
+        }
     }
 
     /**

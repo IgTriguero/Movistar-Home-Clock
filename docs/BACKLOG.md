@@ -28,32 +28,25 @@ para todas las ciudades.
 - Tests: modelo, codec, migración, cliente multi-ciudad, caché, repositorio,
   pager y `Prefs` con un `SharedPreferences` en memoria.
 
-## 2. Primera ciudad detectada por IP 🔜 S
+## 2. Primera ciudad detectada por IP ✅ S
 
-**Depende de 1.** El listado y la migración ya están preparados para una ciudad
-`source: DETECTED`; falta la detección.
+**Implementado:** `IpLocationClient` consulta `ipwho.is` al abrir la app y
+promueve la ciudad actual al primer puesto sin borrar ninguna. Si la ciudad ya
+está guardada (misma clave o mismo nombre a ≤25 km) se reutiliza; si es nueva se
+inserta delante. La lista sigue limitada a 8: si está llena se avisa y no se
+añade. En Ajustes hay un botón **Usar mi ubicación** con el mismo comportamiento.
 
-- **Vía recomendada: geolocalización por IP.** En el primer arranque se hace una
-  petición HTTPS a un servicio sin clave (por ejemplo `https://ipwho.is/`,
-  probado en ~120 ms) que devuelve ciudad, latitud y longitud. No requiere
-  permisos ni cambiar ajustes del sistema. Se guarda como primera ciudad y no se
-  vuelve a consultar salvo que el usuario pulse **Usar mi ubicación** en Ajustes.
-- **Por qué no la ubicación de Android:** el RG3205W no declara
-  `android.hardware.location`, no tiene proveedor de red y la ubicación del
-  sistema está desactivada (verificado por ADB). Habría que pedir
-  `ACCESS_COARSE_LOCATION`, activar la ubicación y aun así depender de servicios
-  que el dispositivo no ofrece.
-- **Precisión:** a nivel de ciudad/proveedor, suficiente para el tiempo. Si el
-  servicio falla o no hay red, se usa la ciudad por defecto actual (Tres Cantos)
-  y el usuario puede buscar la suya.
-- **Privacidad:** una única petición a un tercero en el primer arranque; hay que
-  documentarlo en la sección de privacidad del README.
-- La ciudad detectada se puede editar o eliminar como cualquier otra. Si se
-  elimina la primera, la siguiente pasa a ser la inicial.
-- El proveedor debe quedar detrás de una clase pequeña (`IpLocationClient`) para
-  poder cambiarlo sin tocar la UI.
-- En upgrades, no sustituir automáticamente una ciudad manual: ofrecer el botón
-  **Usar mi ubicación** y aplicarlo solo si la lista es la ciudad por defecto.
+- Sin permisos ni ubicación de Android: el RG3205W no tiene proveedor de red ni
+  `android.hardware.location`, así que se usa la IP pública.
+- Hasta 3 intentos por arranque (0, 15 min, 2 h) solo con errores recuperables.
+  No hay flag vitalicio: el siguiente arranque vuelve a intentarlo.
+- Privacidad: el proveedor ve la IP pública y el `User-Agent`; no se envía la
+  ubicación del dispositivo, ni la lista de ciudades, ni identificadores.
+  Documentado en README.
+- La ciudad detectada se puede editar, reordenar o borrar. Si se borra, no
+  reaparece automáticamente hasta el siguiente arranque.
+- En Ajustes solo se muestra la insignia **Actual**; “Por defecto” y
+  “Detectada” se retiraron.
 
 ## 3. Detalle de partido en un modal 💡 L
 
