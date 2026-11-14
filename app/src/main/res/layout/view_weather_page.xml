@@ -54,8 +54,8 @@
                     android:maxWidth="260dp"
                     android:singleLine="true"
                     android:text="@string/city_placeholder"
-                    android:textColor="#808080"
-                    android:textSize="30sp" />
+                    android:textColor="#B0B0B0"
+                    android:textSize="32sp" />
             </LinearLayout>
 
             <TextView
