@@ -1,6 +1,6 @@
 # HomeClock — Diseño técnico
 
-Documento de arquitectura y decisiones de la versión **1.1.1** (14/11/2026). Para instalar, compilar y ver las capturas, consulta el [README](README.md).
+Documento de arquitectura y decisiones de la versión **1.2** (14/11/2026). Para instalar, compilar y ver las capturas, consulta el [README](README.md).
 
 ## 1. Objetivo y alcance
 
@@ -178,15 +178,14 @@ Cada 5 minutos se aplica un desplazamiento de hasta ±4 dp siguiendo un anillo d
 
 ## 7. Ajustes
 
-`SettingsActivity` incluye:
+`SettingsActivity` usa un **menú lateral fijo** con cinco secciones y el contenido a la derecha. Los cambios se guardan al instante; el antiguo botón **Guardar** ya no existe. Cada sección se apila en `sectionGeneral`, `sectionSports`, `sectionWeather`, `sectionInfo` y `sectionReport`; solo una está visible.
 
-- **Ciudades**: lista editable (máximo 8) con buscador de Open-Meteo. Se añaden, seleccionan, reordenan y eliminan; la primera es la ciudad actual y se actualiza al abrir la app. **Usar mi ubicación** lanza la detección por IP. La selección y la lista se guardan al instante. La búsqueda corre en background y descarta respuestas obsoletas.
-- **Equipos**: lista editable (máximo 10) con logo, deporte, competición y país. Se añaden con el buscador de 365Scores (debounce de 350 ms, agrupados por deporte, sugerencia local de As Celtas) o por ID. El checkbox **Seguir** activa/desactiva sin borrar; ✕ elimina con confirmación. **Añadir equipos por defecto** recupera solo los ausentes. La lista vacía es válida: oculta el panel y no consulta fuentes. Los cambios se guardan al instante en `teams_v1`.
-- **Partidos**: visibilidad del panel.
-- **Noche**: activación y franja `HH:mm` con validación.
-- **Diagnóstico**: última actualización, latencia, estado y salud por fuente, caché, contadores de escudos, resumen persistido (sesión, PSS, última salida, fuentes caídas), **Actualizar ahora** y **Borrar caché de escudos**.
-- **Acerca de**: versión, fuentes y comprobación manual de actualizaciones.
-- **Fecha de prueba**: solo en builds debug.
+- **General**: visibilidad del panel, modo noche (`HH:mm` con validación) y fecha de prueba (solo debug).
+- **Deportes**: lista editable (máximo 10) con logo, deporte, competición y país. Se añaden con el buscador de 365Scores (debounce de 350 ms, agrupados por deporte, sugerencia local de As Celtas) o por ID. El checkbox **Seguir** activa/desactiva sin borrar; ✕ elimina con confirmación. **Añadir equipos por defecto** recupera solo los ausentes. La lista vacía es válida: oculta el panel y no consulta fuentes. Los cambios se guardan en `teams_v1`.
+- **Tiempo**: lista editable de ciudades (máximo 8) con buscador de Open-Meteo. Se añaden, seleccionan, reordenan y eliminan; la primera es la ciudad actual y se actualiza al abrir la app. **Usar mi ubicación** lanza la detección por IP. La búsqueda corre en background y descarta respuestas obsoletas.
+- **Información**: diagnóstico (última actualización, latencia, salud por fuente, caché, escudos, resumen persistido, PSS, salida y fuentes caídas), **Actualizar ahora**, **Borrar caché de escudos**, versión, fuentes y comprobación manual de actualizaciones.
+- **Reportar**: `buildReport()` combina versión, Android/dispositivo, fecha y las líneas de diagnóstico visibles. Se puede compartir con `ACTION_SEND` o copiar al portapapeles. No incluye IP, coordenadas, ciudades, equipos ni cuerpos HTTP.
+- El cierre automático de Ajustes a los 60 s sin interacción sigue activo en todas las secciones.
 
 ## 8. Actualizaciones y release
 

@@ -6,6 +6,21 @@
     <string name="settings_title">Ajustes</string>
     <string name="settings_back">Volver</string>
 
+    <!-- Navegación del rail -->
+    <string name="settings_rail_general">General</string>
+    <string name="settings_rail_general_sub">Panel y noche</string>
+    <string name="settings_rail_sports">Deportes</string>
+    <string name="settings_rail_sports_sub">Equipos y fuentes</string>
+    <string name="settings_rail_weather">Tiempo</string>
+    <string name="settings_rail_weather_sub">Ciudades y ubicación</string>
+    <string name="settings_rail_info">Información</string>
+    <string name="settings_rail_info_sub">Versión y diagnóstico</string>
+    <string name="settings_rail_report">Reportar</string>
+    <string name="settings_rail_report_sub">Compartir un informe</string>
+    <string name="settings_rail_footer">Los cambios se guardan solos</string>
+    <string name="settings_rail_desc">%1$s, %2$s</string>
+    <string name="settings_rail_desc_selected">%1$s, %2$s, seleccionado</string>
+
     <!-- Ciudades -->
     <string name="settings_section_cities">Ciudades</string>
     <string name="settings_cities_help">La primera es la ciudad actual. Se actualiza al iniciar la app; desliza en el reloj para cambiar.</string>
@@ -124,7 +139,21 @@
     <string name="settings_section_about">Acerca de</string>
     <string name="settings_version">Versión %1$s</string>
     <string name="settings_sources">Fuentes: 365Scores / RFEF / Celta / Open-Meteo</string>
-    <string name="settings_save">Guardar</string>
+
+    <!-- Reportar -->
+    <string name="settings_report_help">Comparte un informe con el estado de la app. No incluye IP, coordenadas, ciudades ni cuerpos HTTP.</string>
+    <string name="settings_report_preview_label">Vista previa</string>
+    <string name="settings_report_share">Compartir informe</string>
+    <string name="settings_report_copy">Copiar informe</string>
+    <string name="settings_report_share_chooser">Compartir informe</string>
+    <string name="settings_report_subject">HomeClock %1$s — informe</string>
+    <string name="settings_report_header">HomeClock %1$s (%2$d)</string>
+    <string name="settings_report_device">Android %1$s · %2$s %3$s</string>
+    <string name="settings_report_footer">Informe generado desde Ajustes → Reportar</string>
+    <string name="settings_report_copied">Informe copiado</string>
+    <string name="settings_report_copy_error">No se pudo copiar el informe</string>
+    <string name="settings_report_share_error">No hay ninguna app para compartir el informe</string>
+    <string name="settings_report_clip_label">Informe de HomeClock</string>
 
     <!-- Actualizaciones -->
     <string name="update_title">Actualización %1$s disponible</string>

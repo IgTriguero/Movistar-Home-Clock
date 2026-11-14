@@ -6,7 +6,7 @@ sirve para no perder el contexto técnico de cada propuesta.
 Estados: 💡 idea · 🔜 siguiente · 🚧 en curso · ✅ hecho
 Tamaño orientativo: S (1 día) · M (2-3 días) · L (4-5 días)
 
-Última revisión: 14/11/2026 (versión 1.1.1).
+Última revisión: 14/11/2026 (versión 1.2).
 
 ## 1. Varias ciudades guardadas con swipe de tiempo ✅ M
 
@@ -186,9 +186,15 @@ Solo si se quiere evitar la confirmación final del instalador de Android.
 Implica provisionar el dispositivo como *device owner*; no es necesario para el
 uso actual.
 
-## 10. Reporte de errores desde la app 💡 M
+## 10. Reporte de errores desde la app ✅ M (v1)
 
-**Objetivo:** que los fallos de fuentes, tiempo o crashes lleguen al
+**Implementado v1:** Ajustes → **Reportar** muestra una vista previa con versión,
+Android/dispositivo, fecha y las líneas de diagnóstico, y permite **compartirla
+con el share sheet** o **copiarla**. No incluye IP, coordenadas, ciudades,
+equipos ni cuerpos HTTP. No hay envío automático ni issue prerrellenada; eso
+queda como v2 opcional.
+
+**Objetivo original:** que los fallos de fuentes, tiempo o crashes lleguen al
 desarrollador con contexto útil, sin analítica ni cuentas.
 
 **Lo estándar:** separar registro estructurado, captura de crashes/ANRs y
@@ -218,13 +224,14 @@ ANRs se leen con `Thread.setDefaultUncaughtExceptionHandler` y
   tokens ni trazas.
 - **Frecuencia:** solo transiciones (caída/recuperación, fallo de tiempo, crash)
   o informe manual; nada de un POST por refresco. Rate limit y deduplicación.
-- **Recomendación v1:** botón **Reportar problema** en Ajustes que muestra una
-  preview, empaqueta el diagnóstico persistido + últimos eventos y abre el share
-  sheet; para el dueño del repo, opción de issue prerrellenada. v2 opcional:
-  endpoint serverless para reportes automáticos.
+- **Hecho en v1:** vista previa en Ajustes → Reportar, share sheet del sistema y
+  copia al portapapeles, con el diagnóstico ya persistido. Sin issue
+  prerrellenada ni envío automático.
+- **Pendiente v2:** log de eventos, issue prerrellenada y endpoint serverless
+  para reportes automáticos con rate limit y deduplicación.
 
-**Base:** el diagnóstico persistente de 7 ya está implementado; faltaría el
-log de eventos y el transporte.
+**Base:** el diagnóstico persistente de 7 y el reporte v1 ya están implementados;
+faltaría el log de eventos y el transporte automático para v2.
 
 ## Descartado por ahora
 

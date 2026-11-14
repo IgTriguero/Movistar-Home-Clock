@@ -16,6 +16,7 @@ App Android ligera para un **Movistar Home RG3205W** en horizontal. Muestra un r
 - **Buscador de equipos** en 365Scores para añadir cualquier club o selección de fútbol/baloncesto, con alta manual por ID. As Celtas se ofrece como sugerencia local porque no está en 365Scores.
 - **Equipos en pausa** sin borrarlos y lista vacía válida: si no sigues a nadie, el panel se oculta y no se consultan fuentes.
 - **Vuelta automática al reloj**: Ajustes se cierra solo tras 60 s sin interacción y un panel oculto vuelve a aparecer si hay partido. La navegación por días también regresa a hoy sin mostrar cuenta atrás.
+- **Ajustes por secciones** con menú lateral y autoguardado: General, Deportes, Tiempo, Información y Reportar. **Reportar** permite compartir o copiar un informe con el diagnóstico sin datos sensibles.
 - **Detalle de partido** al tocar una fila: goles, tarjetas, cambios, alineaciones, estadísticas, estadio, árbitro y dónde ver. RFEF y Celta muestran el resumen básico y un enlace a su fuente.
 - **Dónde verlo en España**: emisoras de 365Scores cuando están disponibles, guía por competición 2026/27 y búsqueda directa, con aviso de que los derechos cambian.
 - **Minuto real de la API**, sin reloj local inventado: `34'`, `90+4'`, `4C 00:03`.
@@ -66,12 +67,14 @@ Sí. El wrapper fija Gradle 8.5 y permite que cualquiera compile con `./gradlew`
 
 ## Ajustes
 
-- **Ciudades**: lista editable (hasta 8). Se añaden con el buscador, se seleccionan tocando una fila y se reordenan o eliminan con los botones. La primera es la ciudad actual y se actualiza al abrir la app; **Usar mi ubicación** fuerza la detección por IP. La seleccionada se conserva entre arranques.
-- **Equipos**: lista editable (hasta 10). Se añaden con el buscador de 365Scores o por ID, se activan/desactivan con **Seguir** sin borrarlos y se eliminan con ✕ y confirmación. As Celtas se ofrece como sugerencia local y controla si se consultan RFEF y Celta. **Añadir equipos por defecto** recupera solo los que falten. Los cambios se guardan al instante y el panel se refresca al volver.
-- **Partidos**: mostrar u ocultar el panel.
-- **Noche**: activar y definir inicio/fin (`HH:mm`). La franja puede cruzar medianoche. Si inicio y fin coinciden, no se aplica.
-- **Diagnóstico**: última actualización, latencia, estado y salud de cada fuente, antigüedad de la caché, contadores de escudos, PSS, última salida del proceso y fuentes caídas; botones **Actualizar ahora** y **Borrar caché de escudos**. El resumen se guarda en `no_backup/diagnostics.json` y se conserva tras reiniciar la app.
-- **Acerca de**: versión, fuentes y **Buscar actualización**.
+Ajustes se organiza con un **menú lateral fijo** y guarda los cambios al instante:
+
+- **General**: mostrar u ocultar el panel de partidos, modo noche y fecha de prueba (solo en builds debug).
+- **Deportes**: lista editable de equipos (hasta 10), buscador de 365Scores, alta por ID, pausa/borrado y equipos por defecto. As Celtas se ofrece como sugerencia local.
+- **Tiempo**: ciudades (hasta 8), selección, reordenación, borrado, buscador y **Usar mi ubicación**.
+- **Información**: diagnóstico completo, versión, fuentes y comprobación manual de actualizaciones.
+- **Reportar**: vista previa del informe con versión, dispositivo y diagnóstico; botones para compartirlo con el share sheet o copiarlo. No incluye IP, coordenadas, ciudades ni cuerpos HTTP.
+- **Autoguardado**: panel, noche y fecha de prueba se guardan al cambiar; ciudades y equipos ya lo hacían. El antiguo botón **Guardar** desaparece.
 
 ## Actualizaciones
 

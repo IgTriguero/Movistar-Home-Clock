@@ -4,8 +4,13 @@ import com.itriguero.homeclock.TeamSearchClient.TeamSearchException;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.ActivityNotFoundException;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Context;
+import android.content.Intent;
 import android.graphics.Bitmap;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -44,14 +49,20 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Ajustes de la app: lista editable de ciudades, búsqueda, partidos y modo
- * noche. Las operaciones sobre la lista se guardan al instante; Guardar
- * persiste el resto.
+ * Ajustes de la app: menú lateral con secciones de panel y noche, equipos,
+ * ciudades, diagnóstico y reporte. Cada cambio se guarda al instante.
  */
 public class SettingsActivity extends Activity {
 
     private static final String[] KNOWN_SOURCES = {
             Scores365Source.ID, RfefSource.ID, CeltaSource.ID};
+
+    private static final int SECTION_GENERAL = 0;
+    private static final int SECTION_SPORTS = 1;
+    private static final int SECTION_WEATHER = 2;
+    private static final int SECTION_INFO = 3;
+    private static final int SECTION_REPORT = 4;
+    private static final int SECTION_COUNT = 5;
 
     private static final long TEAM_SEARCH_DEBOUNCE_MS = 350L;
     /** Vuelve al reloj si Ajustes se queda abierto sin interacción. */
@@ -85,6 +96,23 @@ public class SettingsActivity extends Activity {
     private Button useLocationButton;
     private TextView useLocationStatus;
     private ScrollView settingsScroll;
+
+    private View railGeneral;
+    private View railSports;
+    private View railWeather;
+    private View railInfo;
+    private View railReport;
+    private View sectionGeneral;
+    private View sectionSports;
+    private View sectionWeather;
+    private View sectionInfo;
+    private View sectionReport;
+    private TextView reportPreview;
+    private Button reportShareButton;
+    private Button reportCopyButton;
+    private TextView reportStatus;
+    private int selectedSection = SECTION_GENERAL;
+
     private CheckBox showMatchesInput;
     private CheckBox nightEnabledInput;
     private EditText nightStartInput;
@@ -151,6 +179,20 @@ public class SettingsActivity extends Activity {
         useLocationButton = findViewById(R.id.useLocationButton);
         useLocationStatus = findViewById(R.id.useLocationStatus);
         settingsScroll = findViewById(R.id.settingsScroll);
+        railGeneral = findViewById(R.id.railGeneral);
+        railSports = findViewById(R.id.railSports);
+        railWeather = findViewById(R.id.railWeather);
+        railInfo = findViewById(R.id.railInfo);
+        railReport = findViewById(R.id.railReport);
+        sectionGeneral = findViewById(R.id.sectionGeneral);
+        sectionSports = findViewById(R.id.sectionSports);
+        sectionWeather = findViewById(R.id.sectionWeather);
+        sectionInfo = findViewById(R.id.sectionInfo);
+        sectionReport = findViewById(R.id.sectionReport);
+        reportPreview = findViewById(R.id.reportPreview);
+        reportShareButton = findViewById(R.id.reportShareButton);
+        reportCopyButton = findViewById(R.id.reportCopyButton);
+        reportStatus = findViewById(R.id.reportStatus);
         showMatchesInput = findViewById(R.id.showMatches);
         nightEnabledInput = findViewById(R.id.nightEnabled);
         nightStartInput = findViewById(R.id.nightStart);
@@ -190,8 +232,46 @@ public class SettingsActivity extends Activity {
         ((TextView) findViewById(R.id.version))
                 .setText(getString(R.string.settings_version, BuildConfig.VERSION_NAME));
 
+        // Autoguardado: los listeners van después de los valores iniciales.
+        showMatchesInput.setOnCheckedChangeListener(
+                (button, checked) -> prefs.saveShowMatches(checked));
+        nightEnabledInput.setOnCheckedChangeListener(
+                (button, checked) -> saveNightIfValid());
+
+        TextWatcher nightWatcher = new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                saveNightIfValid();
+            }
+        };
+        nightStartInput.addTextChangedListener(nightWatcher);
+        nightEndInput.addTextChangedListener(nightWatcher);
+        testDateInput.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                prefs.saveTestDate(BuildConfig.DEBUG ? s.toString().trim() : null);
+            }
+        });
+
         findViewById(R.id.backButton).setOnClickListener(v -> finish());
-        findViewById(R.id.saveButton).setOnClickListener(v -> save());
+        reportShareButton.setOnClickListener(v -> shareReport());
+        reportCopyButton.setOnClickListener(v -> copyReport());
         checkUpdatesButton.setOnClickListener(v -> checkForUpdates());
         refreshNowButton.setOnClickListener(v -> requestRefreshNow());
         clearLogosButton.setOnClickListener(v -> clearLogoCache());
@@ -233,6 +313,13 @@ public class SettingsActivity extends Activity {
                 onTeamQueryChanged(s.toString());
             }
         });
+
+        railGeneral.setOnClickListener(v -> selectSection(SECTION_GENERAL));
+        railSports.setOnClickListener(v -> selectSection(SECTION_SPORTS));
+        railWeather.setOnClickListener(v -> selectSection(SECTION_WEATHER));
+        railInfo.setOnClickListener(v -> selectSection(SECTION_INFO));
+        railReport.setOnClickListener(v -> selectSection(SECTION_REPORT));
+        selectSection(SECTION_GENERAL);
     }
 
     @Override
@@ -245,6 +332,7 @@ public class SettingsActivity extends Activity {
         renderTeamList();
         applyTeamsReadOnlyControls();
         updateDiagnostics();
+        if (selectedSection == SECTION_REPORT) updateReportPreview();
         resumed = true;
         restartIdleTimer();
     }
@@ -281,6 +369,65 @@ public class SettingsActivity extends Activity {
         dialog.setOnDismissListener(ignored -> restartIdleTimer());
         dialog.show();
         restartIdleTimer();
+    }
+
+    /** Cambia la sección visible del panel derecho y el estado del rail. */
+    private void selectSection(int index) {
+        if (index < 0 || index >= SECTION_COUNT) return;
+        selectedSection = index;
+
+        View[] rails = {railGeneral, railSports, railWeather, railInfo, railReport};
+        View[] sections = {sectionGeneral, sectionSports, sectionWeather,
+                sectionInfo, sectionReport};
+        String[] titles = {
+                getString(R.string.settings_rail_general),
+                getString(R.string.settings_rail_sports),
+                getString(R.string.settings_rail_weather),
+                getString(R.string.settings_rail_info),
+                getString(R.string.settings_rail_report)};
+        String[] subtitles = {
+                getString(R.string.settings_rail_general_sub),
+                getString(R.string.settings_rail_sports_sub),
+                getString(R.string.settings_rail_weather_sub),
+                getString(R.string.settings_rail_info_sub),
+                getString(R.string.settings_rail_report_sub)};
+
+        for (int i = 0; i < SECTION_COUNT; i++) {
+            boolean selected = i == index;
+            rails[i].setSelected(selected);
+            rails[i].setContentDescription(getString(selected
+                    ? R.string.settings_rail_desc_selected
+                    : R.string.settings_rail_desc, titles[i], subtitles[i]));
+            sections[i].setVisibility(selected ? View.VISIBLE : View.GONE);
+        }
+
+        settingsScroll.scrollTo(0, 0);
+        View focus = getCurrentFocus();
+        if (focus != null) focus.clearFocus();
+        hideKeyboard();
+        if (index == SECTION_REPORT) updateReportPreview();
+    }
+
+    /** Guarda el modo noche solo si las dos horas tienen formato HH:mm. */
+    private void saveNightIfValid() {
+        String start = nightStartInput.getText().toString().trim();
+        String end = nightEndInput.getText().toString().trim();
+
+        nightStartInput.setError(null);
+        nightEndInput.setError(null);
+
+        boolean valid = true;
+        if (!NightSchedule.isValidHhMm(start)) {
+            nightStartInput.setError(getString(R.string.settings_night_invalid));
+            valid = false;
+        }
+        if (!NightSchedule.isValidHhMm(end)) {
+            nightEndInput.setError(getString(R.string.settings_night_invalid));
+            valid = false;
+        }
+        if (!valid) return;
+
+        prefs.saveNight(nightEnabledInput.isChecked(), start, end);
     }
 
     @Override
@@ -1218,8 +1365,7 @@ public class SettingsActivity extends Activity {
     }
 
     private void scrollToTeamResults() {
-        settingsScroll.post(() ->
-                settingsScroll.smoothScrollTo(0, teamSearchStatus.getTop()));
+        smoothScrollTo(teamSearchStatus);
     }
 
     private void loadTeamLogo(String url, ImageView view) {
@@ -1255,8 +1401,7 @@ public class SettingsActivity extends Activity {
         checkUpdatesButton.setEnabled(false);
         updateStatus.setText(R.string.update_checking);
         updateStatus.setVisibility(View.VISIBLE);
-        settingsScroll.post(() ->
-                settingsScroll.smoothScrollTo(0, checkUpdatesButton.getTop()));
+        smoothScrollTo(checkUpdatesButton);
 
         updateExecutor.execute(() -> {
             try {
@@ -1281,6 +1426,76 @@ public class SettingsActivity extends Activity {
                 });
             }
         });
+    }
+
+    /**
+     * Informe de solo lectura con versión, dispositivo y el diagnóstico visible.
+     * No incluye IP, coordenadas, ciudades, cuerpos HTTP ni equipos.
+     */
+    private String buildReport() {
+        StringBuilder out = new StringBuilder();
+        out.append(getString(R.string.settings_report_header,
+                BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE));
+        out.append('\n');
+        out.append(getString(R.string.settings_report_device,
+                Build.VERSION.RELEASE, Build.MANUFACTURER, Build.MODEL));
+        out.append('\n');
+        out.append(new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+                .format(new Date()));
+        out.append("\n\n");
+
+        TextView[] diagnostics = {
+                diagnosticsMatches, diagnosticsWeather, diagnosticsSources,
+                diagnosticsCache, diagnosticsLogos, diagnosticsPersisted,
+                diagnosticsMemory, diagnosticsExit, diagnosticsHealth};
+        boolean hasDiagnostics = false;
+        for (TextView view : diagnostics) {
+            if (view == null) continue;
+            String text = view.getText().toString().trim();
+            if (text.isEmpty()) continue;
+            if (hasDiagnostics) out.append('\n');
+            out.append(text);
+            hasDiagnostics = true;
+        }
+
+        out.append("\n\n");
+        out.append(getString(R.string.settings_report_footer));
+        return out.toString();
+    }
+
+    private void updateReportPreview() {
+        if (reportPreview == null) return;
+        reportPreview.setText(buildReport());
+    }
+
+    private void shareReport() {
+        Intent intent = new Intent(Intent.ACTION_SEND);
+        intent.setType("text/plain");
+        intent.putExtra(Intent.EXTRA_SUBJECT, getString(
+                R.string.settings_report_subject, BuildConfig.VERSION_NAME));
+        intent.putExtra(Intent.EXTRA_TEXT, buildReport());
+        try {
+            startActivity(Intent.createChooser(intent,
+                    getString(R.string.settings_report_share_chooser)));
+        } catch (ActivityNotFoundException e) {
+            showReportStatus(R.string.settings_report_share_error);
+        }
+    }
+
+    private void copyReport() {
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+        if (clipboard == null) {
+            showReportStatus(R.string.settings_report_copy_error);
+            return;
+        }
+        clipboard.setPrimaryClip(ClipData.newPlainText(
+                getString(R.string.settings_report_clip_label), buildReport()));
+        showReportStatus(R.string.settings_report_copied);
+    }
+
+    private void showReportStatus(int stringRes) {
+        reportStatus.setText(stringRes);
+        reportStatus.setVisibility(View.VISIBLE);
     }
 
     private void updateDiagnostics() {
@@ -1668,31 +1883,6 @@ public class SettingsActivity extends Activity {
         return error.length() <= 48 ? error : error.substring(0, 48) + "…";
     }
 
-    private void save() {
-        String start = nightStartInput.getText().toString().trim();
-        String end = nightEndInput.getText().toString().trim();
-        boolean valid = true;
-
-        nightStartInput.setError(null);
-        nightEndInput.setError(null);
-
-        if (!NightSchedule.isValidHhMm(start)) {
-            nightStartInput.setError(getString(R.string.settings_night_invalid));
-            valid = false;
-        }
-        if (!NightSchedule.isValidHhMm(end)) {
-            nightEndInput.setError(getString(R.string.settings_night_invalid));
-            valid = false;
-        }
-        if (!valid) return;
-
-        prefs.saveShowMatches(showMatchesInput.isChecked());
-        prefs.saveNight(nightEnabledInput.isChecked(), start, end);
-        prefs.saveTestDate(BuildConfig.DEBUG
-                ? testDateInput.getText().toString().trim() : null);
-        finish();
-    }
-
     private static String resultLabel(CitySearchClient.Result result) {
         StringBuilder label = new StringBuilder(
                 result.name == null ? "" : result.name);
@@ -1713,7 +1903,8 @@ public class SettingsActivity extends Activity {
     }
 
     private void hideKeyboard() {
-        hideKeyboard(cityQuery);
+        View focus = getCurrentFocus();
+        hideKeyboard(focus != null ? focus : cityQuery);
     }
 
     private void hideKeyboard(View view) {
@@ -1725,7 +1916,25 @@ public class SettingsActivity extends Activity {
     }
 
     private void scrollToResults() {
-        settingsScroll.post(() ->
-                settingsScroll.smoothScrollTo(0, searchStatus.getTop()));
+        smoothScrollTo(searchStatus);
+    }
+
+    /**
+     * Desplaza el panel derecho hasta un hijo de la sección visible. Suma las
+     * posiciones intermedias porque el ScrollView contiene un único contenedor
+     * con las cinco secciones.
+     */
+    private void smoothScrollTo(View target) {
+        if (target == null) return;
+        View content = settingsScroll.getChildAt(0);
+        int y = 0;
+        View view = target;
+        while (view != null && view != content) {
+            y += view.getTop();
+            if (!(view.getParent() instanceof View)) break;
+            view = (View) view.getParent();
+        }
+        final int scrollY = y;
+        settingsScroll.post(() -> settingsScroll.smoothScrollTo(0, scrollY));
     }
 }
