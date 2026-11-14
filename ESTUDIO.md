@@ -25,6 +25,10 @@ La app es **standalone**: no hay backend propio, cuenta de usuario ni analítica
 ## 2. Arquitectura
 
 ```text
+HomeClockApp
+  ├── DiagnosticsStore (sesiones, PSS, salidas, debounce)
+  └── listener de Diagnostics
+
 MainActivity
   ├── reloj/fecha (tick de 1 s)
   ├── detección de ciudad por IP (al arrancar + reintentos)
@@ -55,7 +59,11 @@ SettingsActivity
 | `CeltaSource` | As Celtas en Copa de la Reina (web del Celta). |
 | `MatchCache` | Un JSON por fecha, escritura atómica y lectura tolerante. |
 | `MatchesSnapshot` | Partidos + estado por fuente + marca de stale. |
-| `Diagnostics` | Último resultado en memoria para la pantalla de ajustes. |
+| `Diagnostics` | Estado vivo: último resultado, salud por fuente y del tiempo. |
+| `DiagnosticsStore` | Persiste el resumen en `no_backup/diagnostics.json`, PSS, salidas, sesiones y debounce. |
+| `SourceHealth` / `SourceHealthPolicy` | Rachas de fallos y caída de fuente (3 fallos + 15 min). |
+| `ExitInfoReader` / `ExitReasonMapper` | Motivos de salida de `ApplicationExitInfo` (API 30+) y su clasificación. |
+| `HomeClockApp` | Arranca el store antes de las Activities y recibe `onTrimMemory`. |
 | `LogoLoader` | Escudos en memoria y disco, con caché negativa. |
 | `UpdateClient` / `UpdateDownloader` / `UpdateInstaller` | Comprobación, descarga, SHA-256 e instalación. |
 | `PixelShift` | Patrón de desplazamiento anti-retención. |
@@ -116,7 +124,8 @@ Sin nombres se compara `id + fuente`. En caso de duplicado se prioriza el estado
 - Si fallan todas, se devuelve el último snapshot con `stale=true`.
 - Solo se sobrescribe la caché cuando el ciclo termina sin errores.
 - `SourceStatus` guarda estado, error, latencia, `fetchedAt`, `fromCache` y número de partidos.
-- `Diagnostics` guarda en memoria el último snapshot y el último tiempo; Ajustes cae a `MatchCache`/`Prefs` si la app acaba de arrancar.
+- `Diagnostics` guarda en memoria el último snapshot, la salud por fuente/tiempo y notifica a `DiagnosticsStore`.
+- `DiagnosticsStore` escribe un resumen JSON versionado en `no_backup/diagnostics.json` con debounce (20 s, máximo 60 s), PSS (`Debug.MemoryInfo`), motivo de la última salida (`ApplicationExitInfo` en API 30+) y contadores. Ajustes lo usa antes de caer a `MatchCache`/`Prefs`.
 
 La caché de partidos es un JSON por fecha en `filesDir` (`matches_YYYY-MM-DD.json`) con escritura atómica (`.tmp` + rename). La caché de tiempo está en `SharedPreferences` y se invalida al cambiar de ciudad.
 
@@ -156,7 +165,7 @@ Cada 5 minutos se aplica un desplazamiento de hasta ±4 dp siguiendo un anillo d
 - **Ciudades**: lista editable (máximo 8) con buscador de Open-Meteo. Se añaden, seleccionan, reordenan y eliminan; la primera es la ciudad actual y se actualiza al abrir la app. **Usar mi ubicación** lanza la detección por IP. La selección y la lista se guardan al instante. La búsqueda corre en background y descarta respuestas obsoletas.
 - **Partidos**: visibilidad del panel.
 - **Noche**: activación y franja `HH:mm` con validación.
-- **Diagnóstico**: última actualización, latencia, estado por fuente, caché, contadores de escudos, **Actualizar ahora** y **Borrar caché de escudos**.
+- **Diagnóstico**: última actualización, latencia, estado y salud por fuente, caché, contadores de escudos, resumen persistido (sesión, PSS, última salida, fuentes caídas), **Actualizar ahora** y **Borrar caché de escudos**.
 - **Acerca de**: versión, fuentes y comprobación manual de actualizaciones.
 - **Fecha de prueba**: solo en builds debug.
 
@@ -172,7 +181,7 @@ Cada 5 minutos se aplica un desplazamiento de hasta ±4 dp siguiendo un anillo d
 
 ## 9. Calidad
 
-- **322 tests** unitarios: modelo, mapper, tiempo, temporada, kickoff, refresco, caché, repositorio, `SourceResult`, diagnóstico, pixel shift, caché de escudos, ciudades, caché v2, pager, detección IP y contrato.
+- **397 tests** unitarios: modelo, mapper, tiempo, temporada, kickoff, refresco, caché, repositorio, `SourceResult`, diagnóstico, salud de fuentes, codec/estado persistido, PSS/salidas, pixel shift, caché de escudos, ciudades, caché v2, pager, detección IP y contrato.
 - **Contrato diario** con datos reales de 365Scores, Open-Meteo, RFEF y Celta.
 - **Soak test**: `tools/soak.sh` muestrea PID, PSS, actividad en primer plano y crashes/ANRs durante 72 h.
 - **Lint**: 0 errores; quedan avisos menores de rendimiento/estilo.
@@ -182,6 +191,7 @@ Cada 5 minutos se aplica un desplazamiento de hasta ±4 dp siguiendo un anillo d
 
 - Los equipos seguidos están fijados en código; no hay pantalla para añadirlos o quitarlos.
 - La detección por IP es aproximada a nivel de ciudad/proveedor y puede fallar con VPN, CGNAT, IP móvil o redes corporativas. La ciudad se puede cambiar a mano.
+- En Android anterior a 11 no hay `ApplicationExitInfo`: el motivo de la última salida puede quedar como “desconocida”. El PSS es una tendencia, no una medida exacta.
 - La app es solo horizontal y no arranca sola tras reinicio o corte de luz.
 - No hay kiosco ni launcher.
 - Las fuentes no son APIs oficiales; un cambio de HTML/JSON puede requerir actualizar un parser.
@@ -198,6 +208,6 @@ El detalle vivo, con notas de viabilidad, está en [`docs/BACKLOG.md`](docs/BACK
 4. Dónde ver cada partido en España.
 5. Configuración de equipos desde la app (quitar IDs hardcodeados).
 6. Fallback de fútbol si 365Scores falla.
-7. Diagnóstico persistente entre procesos y aviso de fuente caída.
+7. ✅ Diagnóstico persistente entre procesos y aviso de fuente caída.
 8. Prueba de 72 h completa y ajuste de consumo si aparece deriva.
 9. Valorar *device owner* solo si se quiere actualización totalmente silenciosa.

@@ -17,7 +17,10 @@ import android.widget.Toast;
 
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -32,6 +35,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * persiste el resto.
  */
 public class SettingsActivity extends Activity {
+
+    private static final String[] KNOWN_SOURCES = {
+            Scores365Source.ID, RfefSource.ID, CeltaSource.ID};
 
     private Prefs prefs;
 
@@ -58,6 +64,10 @@ public class SettingsActivity extends Activity {
     private TextView diagnosticsSources;
     private TextView diagnosticsCache;
     private TextView diagnosticsLogos;
+    private TextView diagnosticsPersisted;
+    private TextView diagnosticsMemory;
+    private TextView diagnosticsExit;
+    private TextView diagnosticsHealth;
     private Button refreshNowButton;
     private Button clearLogosButton;
     private TextView diagnosticsStatus;
@@ -98,6 +108,10 @@ public class SettingsActivity extends Activity {
         diagnosticsSources = findViewById(R.id.diagnosticsSources);
         diagnosticsCache = findViewById(R.id.diagnosticsCache);
         diagnosticsLogos = findViewById(R.id.diagnosticsLogos);
+        diagnosticsPersisted = findViewById(R.id.diagnosticsPersisted);
+        diagnosticsMemory = findViewById(R.id.diagnosticsMemory);
+        diagnosticsExit = findViewById(R.id.diagnosticsExit);
+        diagnosticsHealth = findViewById(R.id.diagnosticsHealth);
         refreshNowButton = findViewById(R.id.refreshNowButton);
         clearLogosButton = findViewById(R.id.clearLogosButton);
         diagnosticsStatus = findViewById(R.id.diagnosticsStatus);
@@ -527,47 +541,128 @@ public class SettingsActivity extends Activity {
     private void updateDiagnostics() {
         long now = System.currentTimeMillis();
         Diagnostics.Snapshot diag = Diagnostics.get().snapshot();
+        DiagnosticsState persisted = DiagnosticsStore.get(this).state();
+        DiagnosticsState.MatchesInfo savedMatches = persisted.matches;
 
+        boolean savedMatchesAvailable = savedMatches.finishedAt > 0L;
         MatchesSnapshot cached = null;
-        if (diag.matchesAt <= 0) {
+        if (diag.matchesAt <= 0L && !savedMatchesAvailable) {
             cached = new MatchCache(this).load(LocalDate.now());
         }
 
         long matchesAt = diag.matchesAt;
+        String matchesDate = diag.matchesDate;
         long duration = diag.matchesDurationMs;
         int matchCount = diag.matchCount;
-        Map<String, SourceStatus> sources = diag.sources;
         long fetchedAt = diag.fetchedAt;
         boolean stale = diag.stale;
+        boolean partial = false;
 
-        if (matchesAt <= 0 && cached != null) {
+        if (matchesAt <= 0L && savedMatchesAvailable) {
+            matchesAt = savedMatches.finishedAt;
+            matchesDate = savedMatches.date;
+            duration = savedMatches.durationMs;
+            matchCount = savedMatches.matchCount;
+            fetchedAt = savedMatches.fetchedAt;
+            stale = savedMatches.stale;
+            partial = savedMatches.partial;
+        }
+
+        if (matchesAt <= 0L && cached != null) {
             matchesAt = cached.fetchedAt;
+            matchesDate = cached.date == null ? "" : cached.date.toString();
             matchCount = cached.matches.size();
-            sources = cached.sources;
             fetchedAt = cached.fetchedAt;
             stale = cached.stale;
         }
 
-        if (matchesAt > 0) {
-            String line = getString(R.string.diag_matches,
-                    Diagnostics.ageLabel(matchesAt, now), duration, matchCount);
-            if (stale) line += getString(R.string.diag_stale_suffix);
+        if (matchesAt > 0L) {
+            StringBuilder suffix = new StringBuilder();
+            if (stale) suffix.append(getString(R.string.diag_stale_suffix));
+            if (partial) {
+                suffix.append(getString(R.string.diag_matches_partial_suffix));
+            }
+
+            String date = dateLabel(matchesDate, matchesAt);
+            String line;
+            if (!date.isEmpty()) {
+                line = getString(R.string.diag_matches_dated,
+                        date, Diagnostics.ageLabel(matchesAt, now), duration,
+                        matchCount, suffix.toString());
+            } else {
+                StringBuilder plain = new StringBuilder(getString(
+                        R.string.diag_matches, Diagnostics.ageLabel(matchesAt, now),
+                        duration, matchCount));
+                plain.append(suffix);
+                line = plain.toString();
+            }
             diagnosticsMatches.setText(line);
         } else {
             diagnosticsMatches.setText(R.string.diag_no_data);
         }
 
-        long weatherAt = diag.weatherAt > 0
-                ? diag.weatherAt : weatherSavedAt();
-        if (weatherAt > 0) {
-            diagnosticsWeather.setText(getString(R.string.diag_weather,
-                    Diagnostics.ageLabel(weatherAt, now), timeLabel(weatherAt)));
-        } else {
-            diagnosticsWeather.setText(R.string.diag_no_data);
+        boolean liveWeather = diag.weatherAt > 0L
+                || (diag.weatherState != null && !diag.weatherState.isEmpty());
+        DiagnosticsState.WeatherInfo savedWeather = persisted.weather;
+        boolean savedWeatherAvailable = savedWeather.finishedAt > 0L
+                || savedWeather.fetchedAt > 0L
+                || savedWeather.cityCount > 0
+                || savedWeather.consecutiveFailures > 0
+                || savedWeather.lastOkAt > 0L
+                || savedWeather.lastErrorAt > 0L;
+
+        long savedWeatherAt = 0L;
+        if (!liveWeather && !savedWeatherAvailable) {
+            // Compatibilidad: caché antigua cuando aún no hay estado persistido.
+            savedWeatherAt = weatherSavedAt();
         }
 
-        diagnosticsSources.setText(sourceLines(sources));
-        if (fetchedAt > 0) {
+        if (liveWeather || savedWeatherAvailable) {
+            long weatherAt = liveWeather
+                    ? (diag.weatherAt > 0L ? diag.weatherAt : diag.weatherAttemptAt)
+                    : (savedWeather.fetchedAt > 0L
+                            ? savedWeather.fetchedAt : savedWeather.finishedAt);
+            String state = liveWeather ? diag.weatherState : savedWeather.state;
+            String error = liveWeather ? diag.weatherError : savedWeather.error;
+            int cities = liveWeather
+                    ? diag.weatherCityCount : savedWeather.cityCount;
+
+            String detail;
+            if (error != null && !error.isEmpty()) {
+                detail = shortError(error);
+            } else {
+                detail = getString(R.string.diag_weather_cities, cities);
+            }
+            diagnosticsWeather.setText(getString(R.string.diag_weather_state,
+                    Diagnostics.ageLabel(weatherAt, now),
+                    weatherStateLabel(state), detail));
+        } else if (savedWeatherAt > 0L) {
+            diagnosticsWeather.setText(getString(R.string.diag_weather,
+                    Diagnostics.ageLabel(savedWeatherAt, now),
+                    timeLabel(savedWeatherAt)));
+        } else {
+            diagnosticsWeather.setText(R.string.diag_weather_none);
+        }
+
+        Map<String, SourceHealth> health = diag.sourceHealth;
+        if (health == null || health.isEmpty()) health = savedMatches.sources;
+        if (health == null) health = Collections.emptyMap();
+
+        if (!diag.sources.isEmpty()) {
+            diagnosticsSources.setText(sourceLines(diag.sources, health, now));
+        } else if (!savedMatches.sources.isEmpty()) {
+            diagnosticsSources.setText(sourceLines(
+                    Collections.emptyMap(), savedMatches.sources, now));
+        } else if (cached != null && !cached.sources.isEmpty()) {
+            diagnosticsSources.setText(sourceLines(cached.sources, health, now));
+        } else if (!health.isEmpty()) {
+            diagnosticsSources.setText(sourceLines(
+                    Collections.emptyMap(), health, now));
+        } else {
+            diagnosticsSources.setText(R.string.diag_no_data);
+        }
+
+        if (fetchedAt > 0L) {
             diagnosticsCache.setText(getString(R.string.diag_cache,
                     Diagnostics.ageLabel(fetchedAt, now), matchCount));
         } else {
@@ -578,6 +673,53 @@ public class SettingsActivity extends Activity {
         diagnosticsLogos.setText(getString(R.string.diag_logos,
                 stats.memoryHits, stats.diskHits, stats.downloads,
                 stats.failures, stats.negativeHits));
+
+        diagnosticsPersisted.setText(getString(R.string.diag_persisted,
+                Diagnostics.ageLabel(persisted.savedAt, now),
+                persisted.process.sessionCount,
+                Diagnostics.ageLabel(persisted.firstSeenAt, now)));
+
+        DiagnosticsState.MemoryInfo memory = persisted.memory;
+        if (memory.samples > 0) {
+            diagnosticsMemory.setText(getString(R.string.diag_memory,
+                    formatMb(memory.totalPssKb), formatMb(memory.maxPssKb),
+                    formatMb(memory.javaKb), formatMb(memory.nativeKb),
+                    formatMb(memory.codeKb)));
+        } else {
+            diagnosticsMemory.setText(R.string.diag_memory_none);
+        }
+
+        if (!persisted.exits.isEmpty()) {
+            DiagnosticsState.ExitEvent exit = persisted.exits.get(0);
+            diagnosticsExit.setText(getString(R.string.diag_exit,
+                    exitCauseLabel(exit.cause),
+                    Diagnostics.ageLabel(exit.at, now),
+                    persisted.counters.anrs, persisted.counters.lmk,
+                    persisted.counters.unknownExits));
+        } else {
+            diagnosticsExit.setText(R.string.diag_exit_none);
+        }
+
+        Map<String, SourceHealth> healthForDown = diag.sourceHealth == null
+                || diag.sourceHealth.isEmpty()
+                ? savedMatches.sources : diag.sourceHealth;
+        List<String> down = new ArrayList<>();
+        for (Map.Entry<String, SourceHealth> entry : healthForDown.entrySet()) {
+            SourceHealth sourceHealth = entry.getValue();
+            if (sourceHealth == null || !sourceHealth.isDown(now)) continue;
+            String id = entry.getKey();
+            if (id == null || id.isEmpty()) id = sourceHealth.sourceId;
+            down.add(getString(R.string.diag_source_down,
+                    sourceDisplayName(id),
+                    Diagnostics.ageLabel(sourceHealth.downSince, now),
+                    sourceHealth.consecutiveFailures));
+        }
+        if (down.isEmpty()) {
+            diagnosticsHealth.setText(R.string.diag_health_none);
+        } else {
+            diagnosticsHealth.setText(getString(R.string.diag_health,
+                    TextUtils.join("\n", down)));
+        }
     }
 
     private void requestRefreshNow() {
@@ -595,26 +737,48 @@ public class SettingsActivity extends Activity {
         diagnosticsStatus.setVisibility(View.VISIBLE);
     }
 
-    private String sourceLines(Map<String, SourceStatus> sources) {
-        if (sources == null || sources.isEmpty()) {
+    private String sourceLines(Map<String, SourceStatus> sources,
+                               Map<String, SourceHealth> health, long now) {
+        Map<String, SourceStatus> statusMap = sources == null
+                ? Collections.<String, SourceStatus>emptyMap() : sources;
+        Map<String, SourceHealth> healthMap = health == null
+                ? Collections.<String, SourceHealth>emptyMap() : health;
+        if (statusMap.isEmpty() && healthMap.isEmpty()) {
             return getString(R.string.diag_no_data);
         }
 
         StringBuilder out = new StringBuilder();
-        for (String id : new String[]{
-                Scores365Source.ID, RfefSource.ID, CeltaSource.ID}) {
-            if (out.length() > 0) out.append('\n');
-            out.append(sourceLine(id, sources.get(id)));
-        }
-        for (Map.Entry<String, SourceStatus> entry : sources.entrySet()) {
-            String id = entry.getKey();
-            if (Scores365Source.ID.equals(id) || RfefSource.ID.equals(id)
-                    || CeltaSource.ID.equals(id)) {
-                continue;
+        if (!statusMap.isEmpty()) {
+            for (String id : KNOWN_SOURCES) {
+                appendSourceLine(out, id, statusMap.get(id), healthMap, now);
             }
-            out.append('\n').append(sourceLine(id, entry.getValue()));
+        }
+        for (Map.Entry<String, SourceStatus> entry : statusMap.entrySet()) {
+            if (isKnownSource(entry.getKey())) continue;
+            appendSourceLine(out, entry.getKey(), entry.getValue(), healthMap, now);
+        }
+        for (Map.Entry<String, SourceHealth> entry : healthMap.entrySet()) {
+            String id = entry.getKey();
+            if (statusMap.containsKey(id)) continue;
+            if (!statusMap.isEmpty() && isKnownSource(id)) continue;
+            appendSourceLine(out, id, null, healthMap, now);
         }
         return out.toString();
+    }
+
+    private void appendSourceLine(StringBuilder out, String id, SourceStatus status,
+                                  Map<String, SourceHealth> health, long now) {
+        SourceHealth sourceHealth = health.get(id);
+        String line;
+        if (status != null) {
+            line = sourceLine(id, status) + healthSuffix(sourceHealth, now);
+        } else if (sourceHealth != null) {
+            line = healthLine(id, sourceHealth, now);
+        } else {
+            line = sourceLine(id, null);
+        }
+        if (out.length() > 0) out.append('\n');
+        out.append(line);
     }
 
     private String sourceLine(String id, SourceStatus status) {
@@ -633,6 +797,40 @@ public class SettingsActivity extends Activity {
         return getString(R.string.diag_source_line, name,
                 stateLabel(status.state), status.durationMs,
                 status.matchCount, suffix.toString());
+    }
+
+    /** Línea construida solo con la salud persistida de una fuente. */
+    private String healthLine(String id, SourceHealth health, long now) {
+        StringBuilder suffix = new StringBuilder();
+        if (health.fromCache) suffix.append(getString(R.string.diag_source_cache));
+        if (health.error != null && !health.error.isEmpty()) {
+            suffix.append(getString(R.string.diag_source_error_suffix,
+                    shortError(health.error)));
+        }
+        suffix.append(healthSuffix(health, now));
+        return getString(R.string.diag_source_line, sourceDisplayName(id),
+                stateLabel(health.state), health.durationMs, health.matchCount,
+                suffix.toString());
+    }
+
+    private String healthSuffix(SourceHealth health, long now) {
+        if (health == null) return "";
+        StringBuilder suffix = new StringBuilder();
+        if (health.consecutiveFailures > 0) {
+            suffix.append(getString(R.string.diag_health_failures,
+                    health.consecutiveFailures));
+        }
+        if (health.isDown(now)) {
+            suffix.append(getString(R.string.diag_health_down));
+        }
+        return suffix.toString();
+    }
+
+    private static boolean isKnownSource(String id) {
+        for (String known : KNOWN_SOURCES) {
+            if (known.equals(id)) return true;
+        }
+        return false;
     }
 
     private String stateLabel(SourceState state) {
@@ -663,6 +861,61 @@ public class SettingsActivity extends Activity {
     private static String timeLabel(long millis) {
         return new SimpleDateFormat("HH:mm", Locale.getDefault())
                 .format(new Date(millis));
+    }
+
+    private static String dateLabel(long millis) {
+        return new SimpleDateFormat("dd/MM", Locale.getDefault())
+                .format(new Date(millis));
+    }
+
+    /** Fecha ISO del snapshot (2026-11-14) a dd/MM; si no encaja, se deja tal cual. */
+    private static String dateLabel(String isoDate, long fallbackMillis) {
+        if (isoDate != null && !isoDate.isEmpty()) {
+            try {
+                return LocalDate.parse(isoDate).format(
+                        DateTimeFormatter.ofPattern("dd/MM", Locale.getDefault()));
+            } catch (DateTimeParseException e) {
+                return isoDate;
+            }
+        }
+        return fallbackMillis > 0L ? dateLabel(fallbackMillis) : "";
+    }
+
+    private static String formatMb(int kb) {
+        return String.format(Locale.getDefault(), "%.1f MB", kb / 1024f);
+    }
+
+    private String exitCauseLabel(String cause) {
+        if (cause == null) return getString(R.string.diag_exit_unknown);
+        switch (cause) {
+            case "crash":
+            case "crash_native":
+                return getString(R.string.diag_exit_crash);
+            case "anr":
+                return getString(R.string.diag_exit_anr);
+            case "lmk":
+                return getString(R.string.diag_exit_lmk);
+            case "signal":
+                return getString(R.string.diag_exit_signal);
+            case "user":
+                return getString(R.string.diag_exit_user);
+            case "update":
+                return getString(R.string.diag_exit_update);
+            case "reboot":
+                return getString(R.string.diag_exit_reboot);
+            default:
+                return getString(R.string.diag_exit_unknown);
+        }
+    }
+
+    private String weatherStateLabel(String state) {
+        if ("FRESH".equals(state)) {
+            return getString(R.string.diag_weather_fresh);
+        }
+        if ("CACHED".equals(state)) {
+            return getString(R.string.diag_weather_cached);
+        }
+        return getString(R.string.diag_weather_empty);
     }
 
     private static String shortError(String error) {

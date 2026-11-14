@@ -19,7 +19,7 @@ App Android ligera para un **Movistar Home RG3205W** en horizontal. Muestra un r
 - **Minuto real de la API**, sin reloj local inventado: `34'`, `90+4'`, `4C 00:03`.
 - **Refresco adaptativo**: 15 s en baloncesto, 5 s en los últimos 2 min de cuarto, 60 s en fútbol y 6 h sin partidos.
 - **Navegación por días** en el panel con ◀ ▶ y vuelta automática a hoy.
-- **Diagnóstico** en Ajustes: última actualización, latencia, estado por fuente, caché y contadores de escudos.
+- **Diagnóstico persistente** en Ajustes: última actualización, latencia, salud por fuente, caché, contadores de escudos, PSS, motivos de salida del proceso y fuentes caídas. Sobrevive a reinicios de la app.
 - **Actualizaciones** desde GitHub Releases: comprobación diaria, descarga, SHA-256 y un toque en el instalador.
 - **Pixel shift** cada 5 minutos para reducir la retención de pantalla.
 
@@ -67,7 +67,7 @@ Sí. El wrapper fija Gradle 8.5 y permite que cualquiera compile con `./gradlew`
 - **Ciudades**: lista editable (hasta 8). Se añaden con el buscador, se seleccionan tocando una fila y se reordenan o eliminan con los botones. La primera es la ciudad actual y se actualiza al abrir la app; **Usar mi ubicación** fuerza la detección por IP. La seleccionada se conserva entre arranques.
 - **Partidos**: mostrar u ocultar el panel.
 - **Noche**: activar y definir inicio/fin (`HH:mm`). La franja puede cruzar medianoche. Si inicio y fin coinciden, no se aplica.
-- **Diagnóstico**: última actualización, latencia, estado de cada fuente, antigüedad de la caché, contadores de escudos y botones **Actualizar ahora** y **Borrar caché de escudos**.
+- **Diagnóstico**: última actualización, latencia, estado y salud de cada fuente, antigüedad de la caché, contadores de escudos, PSS, última salida del proceso y fuentes caídas; botones **Actualizar ahora** y **Borrar caché de escudos**. El resumen se guarda en `no_backup/diagnostics.json` y se conserva tras reiniciar la app.
 - **Acerca de**: versión, fuentes y **Buscar actualización**.
 
 ## Actualizaciones
@@ -102,10 +102,10 @@ Guarda una copia de `keys/homeclock-release.jks` y sus contraseñas. Sin esa cla
 
 ## Calidad
 
-- **322 tests** unitarios con JUnit y fixtures de las fuentes.
+- **397 tests** unitarios con JUnit y fixtures de las fuentes.
 - **Contrato diario** contra 365Scores, Open-Meteo, RFEF y Celta.
 - **Soak test** de 72 h: `tools/soak.sh` muestrea PID, PSS, actividad en primer plano y crashes/ANRs. Ver [`docs/SOAK.md`](docs/SOAK.md).
-- **Lint** sin errores; solo quedan avisos menores de rendimiento/estilo (pesos anidados y carpeta de icono adaptativo).
+- **Lint** sin errores; solo quedan avisos menores de rendimiento/estilo (pesos anidados, carpeta de icono adaptativo y plurales).
 - Sin AndroidX, sin analítica y sin cuentas.
 
 ## Estructura
@@ -122,7 +122,9 @@ app/src/main/java/com/itriguero/homeclock/
   MatchesClient / *Source    fuentes 365Scores, RFEF y Celta
   MatchCache.java            caché JSON por fecha
   LogoLoader.java            escudos en memoria y disco
-  Diagnostics.java          último estado para diagnóstico
+  Diagnostics.java           estado vivo del diagnóstico
+  DiagnosticsStore.java      persistencia, PSS, salidas y debounce
+  HomeClockApp.java          arranque del store y onTrimMemory
   UpdateClient/Downloader    comprobación y descarga de releases
   PixelShift.java            desplazamiento anti-retención
 app/src/test/                tests y fixtures
@@ -143,6 +145,8 @@ Son APIs y páginas públicas no oficiales: pueden cambiar sin aviso. La app no 
 
 El tiempo envía a Open-Meteo las coordenadas de las ciudades guardadas (hasta 8); no se envía la ubicación del dispositivo.
 
+El diagnóstico se guarda en `no_backup/diagnostics.json` (fuera de backup): versiones, sesiones, estados de fuentes, latencias, PSS y motivos de salida. No incluye IP, coordenadas, nombres de ciudades ni cuerpos de respuesta.
+
 ## Ideas y pendientes
 
 El backlog vivo, con la viabilidad técnica de cada propuesta, está en [`docs/BACKLOG.md`](docs/BACKLOG.md).
@@ -151,6 +155,7 @@ El backlog vivo, con la viabilidad técnica de cada propuesta, está en [`docs/B
 
 - Los equipos seguidos están fijados en código; la configuración desde la app queda para una versión posterior.
 - La detección por IP es aproximada a nivel de ciudad/proveedor y puede fallar con VPN, CGNAT, IP móvil o redes corporativas. La ciudad se puede cambiar a mano.
+- En Android anterior a 11 no hay `ApplicationExitInfo`: el motivo de la última salida puede quedar como “desconocida”. El PSS es una tendencia, no una medida exacta.
 - La app es solo horizontal y no arranca sola tras un reinicio o un corte de luz.
 - No hay *kiosco* ni launcher: se abre a mano.
 - Tras una actualización, Android 15 no permite que la app se reabra sola desde el instalador.

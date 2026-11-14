@@ -72,6 +72,7 @@ public class MainActivity extends Activity {
     private TextView matchSources;
 
     private MatchRepository matchRepository;
+    private DiagnosticsStore diagnosticsStore;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -132,6 +133,9 @@ public class MainActivity extends Activity {
             updateBrowseSubtitle();
             applyNightMode();
             applyPixelShift();
+            long nowMillis = System.currentTimeMillis();
+            diagnosticsStore.heartbeatIfDue(nowMillis);
+            diagnosticsStore.sampleMemoryIfDue(nowMillis);
             handler.postDelayed(this, 1000);
         }
     };
@@ -207,6 +211,8 @@ public class MainActivity extends Activity {
         matchSources = findViewById(R.id.matchSources);
 
         matchRepository = new MatchRepository(getApplicationContext());
+        // Idempotente: HomeClockApp ya lo arrancó; aquí solo se recupera.
+        diagnosticsStore = DiagnosticsStore.get(this);
 
         showMatches = prefs.showMatches();
         lastShowMatches = showMatches;
@@ -253,6 +259,7 @@ public class MainActivity extends Activity {
         super.onResume();
         running = true;
         resumed = true;
+        diagnosticsStore.onForeground(System.currentTimeMillis());
         hideSystemBars();
         loadNightConfig();
 
@@ -323,6 +330,9 @@ public class MainActivity extends Activity {
     protected void onPause() {
         resumed = false;
         handler.removeCallbacks(locationRetry);
+        long now = System.currentTimeMillis();
+        diagnosticsStore.onBackground(now);
+        diagnosticsStore.flush();
         super.onPause();
     }
 
@@ -340,6 +350,8 @@ public class MainActivity extends Activity {
         handler.removeCallbacks(matchesTick);
         handler.removeCallbacks(browseTimeout);
         handler.removeCallbacks(locationRetry);
+        // El store es un singleton del proceso: se vuelca, no se cierra.
+        diagnosticsStore.flush();
         executor.shutdownNow();
         matchesExecutor.shutdownNow();
         updateExecutor.shutdownNow();
@@ -550,13 +562,15 @@ public class MainActivity extends Activity {
         }
 
         executor.execute(() -> {
+            long started = System.currentTimeMillis();
             WeatherSnapshot snapshot = weatherRepository.refreshBlocking(cities);
             runOnUiThread(() -> {
                 if (!running) return;
                 weatherSnapshot = snapshot;
-                if (snapshot.fetchedAt > 0) {
-                    Diagnostics.get().recordWeather(snapshot.fetchedAt);
-                }
+                // Se registra siempre, también con fetchedAt 0: así se
+                // contabilizan los fallos y los estados EMPTY.
+                Diagnostics.get().recordWeather(snapshot, started,
+                        System.currentTimeMillis() - started);
                 updateWeatherChrome();
 
                 // La lista cambió mientras se consultaba la red: se pide un
@@ -666,7 +680,7 @@ public class MainActivity extends Activity {
             long started = System.currentTimeMillis();
             try {
                 MatchesSnapshot snapshot = matchRepository.fetchBlocking(date);
-                Diagnostics.get().recordMatches(snapshot,
+                Diagnostics.get().recordMatches(snapshot, started,
                         System.currentTimeMillis() - started);
                 runOnUiThread(() -> {
                     fetchingMatches.set(false);
@@ -686,7 +700,7 @@ public class MainActivity extends Activity {
                         return;
                     }
                     MatchesSnapshot error = errorSnapshot(date);
-                    Diagnostics.get().recordMatches(error,
+                    Diagnostics.get().recordMatches(error, started,
                             System.currentTimeMillis() - started);
                     applySnapshot(error);
                 });
@@ -721,13 +735,16 @@ public class MainActivity extends Activity {
             return;
         }
 
+        SourceHealthPolicy.GlobalHealth health = SourceHealthPolicy.classify(snapshot);
         if (snapshot.stale) {
-            syncMessage = getString(R.string.matches_stale,
-                    timeFormat.format(new Date(snapshot.fetchedAt)));
+            String time = timeFormat.format(new Date(snapshot.fetchedAt));
+            syncMessage = health == SourceHealthPolicy.GlobalHealth.OFFLINE
+                    ? getString(R.string.matches_stale, time)
+                    : getString(R.string.matches_stale_failed, time);
         } else if (snapshot.hasErrors()) {
             syncMessage = getString(R.string.matches_partial,
                     errorSourceNames(snapshot));
-        } else if (hasCachedSources(snapshot)) {
+        } else if (health == SourceHealthPolicy.GlobalHealth.CACHED) {
             syncMessage = getString(R.string.matches_cached);
         } else {
             syncMessage = "";
@@ -822,32 +839,135 @@ public class MainActivity extends Activity {
     private void updateSourceFooter(MatchesSnapshot snapshot) {
         if (matchSources == null) return;
 
+        long now = System.currentTimeMillis();
+        Map<String, SourceHealth> health = persistedSourceHealth();
+
         if (snapshot == null) {
-            matchSources.setText(R.string.sources_short);
-            matchSources.setTextColor(0xFF808080);
+            // Sin snapshot (carga inicial) se conserva el aviso de las
+            // fuentes que ya constan como caídas en el diagnóstico.
+            if (!hasDownSources(health, now)) {
+                matchSources.setText(R.string.sources_short);
+                matchSources.setTextColor(0xFF808080);
+                matchSources.setContentDescription(getString(R.string.sources_short));
+                return;
+            }
+            matchSources.setText(sourcesLine(
+                    persistedFooterLabel(health, Scores365Source.ID, "365Scores", now),
+                    persistedFooterLabel(health, RfefSource.ID, "RFEF", now),
+                    persistedFooterLabel(health, CeltaSource.ID, "Celta", now)));
+            matchSources.setTextColor(0xFFE0A85A);
+            matchSources.setContentDescription(
+                    sourceFooterDescription(null, health, now));
             return;
         }
 
-        StringBuilder text = new StringBuilder();
-        text.append(sourceFooterLabel(snapshot, Scores365Source.ID, "365Scores"))
-                .append(" · ")
-                .append(sourceFooterLabel(snapshot, RfefSource.ID, "RFEF"))
-                .append(" · ")
-                .append(sourceFooterLabel(snapshot, CeltaSource.ID, "Celta"));
-
-        matchSources.setText(text.toString());
+        matchSources.setText(sourcesLine(
+                sourceFooterLabel(snapshot, Scores365Source.ID, "365Scores"),
+                sourceFooterLabel(snapshot, RfefSource.ID, "RFEF"),
+                sourceFooterLabel(snapshot, CeltaSource.ID, "Celta")));
         matchSources.setTextColor(snapshot.hasErrors() || snapshot.stale
-                || hasCachedSources(snapshot) ? 0xFFE0A85A : 0xFF808080);
+                || hasCachedSources(snapshot) || hasDownSources(health, now)
+                ? 0xFFE0A85A : 0xFF808080);
+        matchSources.setContentDescription(
+                sourceFooterDescription(snapshot, health, now));
+    }
+
+    private static String sourcesLine(String first, String second, String third) {
+        return first + " · " + second + " · " + third;
+    }
+
+    /** Salud de fuentes persistida en el proceso, o vacía si aún no hay. */
+    private Map<String, SourceHealth> persistedSourceHealth() {
+        DiagnosticsStore store = diagnosticsStore;
+        if (store == null) return Collections.emptyMap();
+        DiagnosticsState state = store.state();
+        return state == null ? Collections.emptyMap() : state.matches.sources;
+    }
+
+    private static boolean hasDownSources(Map<String, SourceHealth> health,
+                                          long now) {
+        if (health == null) return false;
+        for (SourceHealth entry : health.values()) {
+            if (SourceHealthPolicy.isDown(entry, now)) return true;
+        }
+        return false;
+    }
+
+    private static String persistedFooterLabel(Map<String, SourceHealth> health,
+                                               String sourceId, String label,
+                                               long now) {
+        SourceHealth entry = health == null ? null : health.get(sourceId);
+        return entry != null && entry.isDown(now) ? label + " ⚠" : label;
+    }
+
+    /**
+     * Texto para TalkBack con el estado de cada fuente, p. ej.
+     * "365Scores: OK; RFEF: caído; Celta: caché".
+     */
+    private String sourceFooterDescription(MatchesSnapshot snapshot,
+                                           Map<String, SourceHealth> health,
+                                           long now) {
+        StringBuilder text = new StringBuilder();
+        appendSourceDescription(text, snapshot, health,
+                Scores365Source.ID, "365Scores", now);
+        appendSourceDescription(text, snapshot, health,
+                RfefSource.ID, "RFEF", now);
+        appendSourceDescription(text, snapshot, health,
+                CeltaSource.ID, "Celta", now);
+        return text.toString();
+    }
+
+    private void appendSourceDescription(StringBuilder text,
+                                         MatchesSnapshot snapshot,
+                                         Map<String, SourceHealth> health,
+                                         String sourceId, String label,
+                                         long now) {
+        if (text.length() > 0) text.append("; ");
+        SourceStatus status = snapshot == null
+                ? null : snapshot.sources.get(sourceId);
+        SourceHealth persisted = health == null ? null : health.get(sourceId);
+        text.append(describeSource(label, status, persisted, now));
+    }
+
+    private String describeSource(String label, SourceStatus status,
+                                  SourceHealth health, long now) {
+        if (status != null) {
+            if (isOkSource(status.state)) {
+                return getString(status.fromCache
+                        ? R.string.sources_desc_cache
+                        : R.string.sources_desc_ok, label);
+            }
+            return getString(status.fromCache
+                    ? R.string.sources_desc_cache_error
+                    : R.string.sources_desc_error, label);
+        }
+        if (health == null || health.attempts <= 0) {
+            return getString(R.string.sources_desc_unknown, label);
+        }
+        if (health.isDown(now)) {
+            return getString(R.string.sources_desc_down, label);
+        }
+        if (isOkSource(health.state)) {
+            return getString(health.fromCache
+                    ? R.string.sources_desc_cache
+                    : R.string.sources_desc_ok, label);
+        }
+        return getString(R.string.sources_desc_error, label);
+    }
+
+    private static boolean isOkSource(SourceState state) {
+        return state == SourceState.OK || state == SourceState.EMPTY;
     }
 
     private String sourceFooterLabel(MatchesSnapshot snapshot,
                                      String sourceId, String label) {
         SourceStatus status = snapshot.sources.get(sourceId);
-        if (status == null) {
-            return snapshot.hasErrors() ? label + " ⚠" : label;
+        // Una fuente no consultada no es una caída.
+        if (status == null) return label;
+        boolean ok = isOkSource(status.state);
+        if (status.fromCache) {
+            return ok ? label + " · caché" : label + " ⚠ · caché";
         }
-        boolean ok = status.state == SourceState.OK || status.state == SourceState.EMPTY;
-        if (status.fromCache) return label + " · caché";
         return ok ? label : label + " ⚠";
     }
 
@@ -871,10 +991,11 @@ public class MainActivity extends Activity {
         return names.length() == 0 ? getString(R.string.diag_source_error) : names.toString();
     }
 
-    private static String sourceDisplayName(String sourceId) {
+    private String sourceDisplayName(String sourceId) {
         if (Scores365Source.ID.equals(sourceId)) return "365Scores";
         if (RfefSource.ID.equals(sourceId)) return "RFEF";
         if (CeltaSource.ID.equals(sourceId)) return "Celta";
+        if ("repository".equals(sourceId)) return "Repositorio";
         return sourceId == null ? "?" : sourceId;
     }
 

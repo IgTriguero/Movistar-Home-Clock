@@ -113,12 +113,20 @@ resolver la búsqueda de equipos contra 365Scores.
 Madrid, Rayo, España o Liverpool. RFEF y Celta solo cubren a As Celtas. Habría
 que elegir una fuente alternativa y normalizarla al modelo `Match`.
 
-## 7. Diagnóstico persistente y aviso de fuente caída 🔜 S/M
+## 7. Diagnóstico persistente y aviso de fuente caída ✅ M
 
-`Diagnostics` es un singleton en memoria: tras morir el proceso, Ajustes cae a
-`MatchCache`/`Prefs`. Falta persistir el último estado. El aviso visual de
-fuente caída ya existe parcialmente (footer con `⚠` y mensajes de *stale* y
-*parcial*); valorar si hace falta algo más visible.
+**Implementado:** `Diagnostics` mantiene el estado vivo (partidos, tiempo y
+salud por fuente) y `DiagnosticsStore` lo persiste con debounce en
+`no_backup/diagnostics.json`, con PSS y motivos de salida.
+
+- Caída de fuente: 3 fallos consecutivos y ≥15 min desde el último OK.
+- `EMPTY` cuenta como éxito; `fromCache` cuenta como fallo.
+- Footer con `⚠` persistido, subtítulo que distingue offline de fallo de
+  fuentes, y líneas nuevas en Ajustes: guardado, memoria, última salida y
+  fuentes caídas.
+- `ApplicationExitInfo` en API 30+; en versiones anteriores la causa puede
+  quedar como “desconocida”.
+- Sin backup: el diagnóstico es local al dispositivo y no se restaura.
 
 ## 8. Soak test de 72 h 🔜
 
@@ -132,6 +140,46 @@ crashes, ANRs, actividad en primer plano y consumo.
 Solo si se quiere evitar la confirmación final del instalador de Android.
 Implica provisionar el dispositivo como *device owner*; no es necesario para el
 uso actual.
+
+## 10. Reporte de errores desde la app 💡 M
+
+**Objetivo:** que los fallos de fuentes, tiempo o crashes lleguen al
+desarrollador con contexto útil, sin analítica ni cuentas.
+
+**Lo estándar:** separar registro estructurado, captura de crashes/ANRs y
+transporte del informe. Una app normal no puede leer `logcat` completo
+(`READ_LOGS` es permiso de sistema); guarda sus propios eventos. Los crashes y
+ANRs se leen con `Thread.setDefaultUncaughtExceptionHandler` y
+`ApplicationExitInfo` (API 30+).
+
+**Opciones de transporte:**
+
+| Opción | Llega | Cuenta | Backend | Privacidad |
+|---|---|---|---|---|
+| Share sheet / email | El usuario envía el informe | No | No | Alta |
+| GitHub Issue prerrellenada | Notificación de la issue | **Sí, login** | No | Pública |
+| Google Forms / Formspree | Email o panel | No | Servicio externo | Media |
+| Proxy serverless (Cloudflare Worker) | Email o issue automática | No | Sí, token en el servidor | Configurable |
+| Sentry / Crashlytics / ACRA | Panel automático | No | SDK externo | Media |
+
+- **GitHub no permite issues como invitado:** hace falta cuenta y sesión, incluso
+  en repos públicos. La URL `issues/new` redirige al login; el cuerpo va en la
+  URL (~8 KB) y la issue es pública.
+- **Nunca poner un token de GitHub/email en el APK.** Para reportes automáticos,
+  un Worker/serverless guarda el token y reenvía a email o crea la issue.
+- **Qué incluir:** versión, Android/modelo, timestamps, fuente, estado, error
+  truncado, latencia, fallos consecutivos, último OK, PSS y motivo de salida.
+  **Qué no:** IP, coordenadas, nombres de ciudades, cuerpos HTTP completos,
+  tokens ni trazas.
+- **Frecuencia:** solo transiciones (caída/recuperación, fallo de tiempo, crash)
+  o informe manual; nada de un POST por refresco. Rate limit y deduplicación.
+- **Recomendación v1:** botón **Reportar problema** en Ajustes que muestra una
+  preview, empaqueta el diagnóstico persistido + últimos eventos y abre el share
+  sheet; para el dueño del repo, opción de issue prerrellenada. v2 opcional:
+  endpoint serverless para reportes automáticos.
+
+**Base:** el diagnóstico persistente de 7 ya está implementado; faltaría el
+log de eventos y el transporte.
 
 ## Descartado por ahora
 

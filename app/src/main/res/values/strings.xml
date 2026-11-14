@@ -107,6 +107,12 @@
     <string name="next_day_desc">Día siguiente</string>
     <string name="matches_subtitle">Partidos de tus equipos</string>
     <string name="sources_short">365Scores · RFEF · Celta</string>
+    <string name="sources_desc_ok">%1$s: OK</string>
+    <string name="sources_desc_cache">%1$s: caché</string>
+    <string name="sources_desc_cache_error">%1$s: error, caché</string>
+    <string name="sources_desc_error">%1$s: error</string>
+    <string name="sources_desc_down">%1$s: caído</string>
+    <string name="sources_desc_unknown">%1$s: sin datos</string>
     <string name="dash">—</string>
 
     <!-- Tiempo -->
@@ -129,6 +135,7 @@
     <string name="matches_empty_day">Sin partidos este día</string>
     <string name="matches_title_more">%1$s · …</string>
     <string name="matches_stale">Sin conexión · datos de %1$s</string>
+    <string name="matches_stale_failed">Datos de %1$s · fallo de fuentes</string>
     <string name="matches_partial">Datos parciales · %1$s</string>
     <string name="matches_cached">Datos en caché</string>
     <string name="matches_in_play">en juego</string>
@@ -165,6 +172,32 @@
     <string name="diag_source_parse">Formato</string>
     <string name="diag_source_offline">Sin conexión</string>
     <string name="diag_source_error">Error</string>
+    <string name="diag_persisted">Guardado: %1$s · sesión #%2$d · desde %3$s</string>
+    <string name="diag_memory">Memoria: %1$s · máx. %2$s · java %3$s · nativa %4$s · código %5$s</string>
+    <string name="diag_memory_none">Memoria: sin datos</string>
+    <string name="diag_exit">Última salida: %1$s · %2$s · ANR %3$d · memoria baja %4$d · sin clasificar %5$d</string>
+    <string name="diag_exit_none">Última salida: sin datos</string>
+    <string name="diag_health">Fuentes caídas: %1$s</string>
+    <string name="diag_health_none">Fuentes caídas: ninguna</string>
+    <string name="diag_source_down">%1$s: caída %2$s (%3$d fallos)</string>
+    <string name="diag_matches_dated">Partidos (%1$s): %2$s · %3$d ms · total %4$d%5$s</string>
+    <string name="diag_matches_partial_suffix"> · parcial</string>
+    <string name="diag_weather_state">Tiempo: %1$s · %2$s · %3$s</string>
+    <string name="diag_weather_cities">%1$d ciudades</string>
+    <string name="diag_weather_none">Tiempo: sin datos</string>
+    <string name="diag_weather_fresh">Fresco</string>
+    <string name="diag_weather_cached">Caché</string>
+    <string name="diag_weather_empty">Sin datos</string>
+    <string name="diag_health_failures"> · %1$d fallos</string>
+    <string name="diag_health_down"> · caída</string>
+    <string name="diag_exit_crash">fallo</string>
+    <string name="diag_exit_anr">ANR</string>
+    <string name="diag_exit_lmk">memoria baja</string>
+    <string name="diag_exit_signal">señal</string>
+    <string name="diag_exit_user">usuario</string>
+    <string name="diag_exit_update">actualización</string>
+    <string name="diag_exit_reboot">reinicio</string>
+    <string name="diag_exit_unknown">desconocida</string>
 
     <!-- Cuentas y estados -->
     <string name="countdown_days">en %1$dd %2$dh</string>
