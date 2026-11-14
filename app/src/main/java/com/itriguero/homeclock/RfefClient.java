@@ -78,6 +78,8 @@ public final class RfefClient {
             "<div class=\"text-lg\">\\s*(.*?)\\s*</div>", Pattern.DOTALL);
     private static final Pattern SCORE_NUMBERS = Pattern.compile("(\\d+)\\s*-\\s*(\\d+)");
     private static final Pattern ACTA = Pattern.compile("CodActa=(\\d+)");
+    private static final Pattern JORNADA_HEADING = Pattern.compile(
+            "<h3[^>]*>\\s*Jornada\\s+(\\d+)\\s*</h3>", Pattern.DOTALL);
 
     private static final Object LOCK = new Object();
 
@@ -115,6 +117,7 @@ public final class RfefClient {
 
             long now = System.currentTimeMillis();
             List<Match> result = new ArrayList<>();
+            boolean fetchFailed = false;
 
             for (int i = 0; i < journeys.length(); i++) {
                 JSONArray pair = journeys.optJSONArray(i);
@@ -142,6 +145,8 @@ public final class RfefClient {
                     } else if (entry != null) {
                         // La jornada no se pudo refrescar: se usa la copia local.
                         fromCache = true;
+                    } else {
+                        fetchFailed = true;
                     }
                 }
                 if (entry != null) {
@@ -149,8 +154,41 @@ public final class RfefClient {
                 }
             }
 
+            // La web de la RFEF cambió el endpoint AJAX: la página inicial de
+            // resultados sigue trayendo la jornada actual. Si no hay datos de
+            // la jornada pedida, se intenta leer esa página antes de darla por
+            // vacía; así una instalación limpia no se queda sin el partido.
+            if (result.isEmpty()) {
+                try {
+                    String page = httpGet(RESULTS_URL);
+                    int pageJourney = parseJourneyNumber(page);
+                    JSONArray pageItems = parseMatches(page);
+                    addMatches(result, pageItems, pageJourney, date, now);
+                    if (pageJourney > 0 && pageItems.length() > 0) {
+                        JSONObject entry = new JSONObject();
+                        entry.put("items", pageItems);
+                        entry.put("fetched", now);
+                        data.put(String.valueOf(pageJourney), entry);
+                        saveCache(context, cache);
+                    }
+                } catch (Exception e) {
+                    if (fetchFailed) {
+                        throw new RuntimeException("RFEF: respuesta inesperada", e);
+                    }
+                }
+                if (result.isEmpty() && fetchFailed) {
+                    throw new RuntimeException("RFEF: respuesta inesperada");
+                }
+            }
+
             return new FetchResult(result, fromCache);
         }
+    }
+
+    static int parseJourneyNumber(String html) {
+        if (html == null) return 0;
+        Matcher matcher = JORNADA_HEADING.matcher(html);
+        return matcher.find() ? Integer.parseInt(matcher.group(1)) : 0;
     }
 
     /**
@@ -215,9 +253,15 @@ public final class RfefClient {
             String body = "parameters=" + URLEncoder.encode(parameters, "UTF-8");
             String html = httpPost(AJAX_URL, body);
             if (html.contains("Error al obtener los datos")) return null;
+            // El endpoint antiguo puede devolver una página completa sin la
+            // jornada. En ese caso no es un resultado vacío válido.
+            if (!html.contains("row mx-auto align-items-stretch")) return null;
+
+            JSONArray items = parseMatches(html);
+            if (items.length() == 0 && html.contains("As Celtas")) return null;
 
             JSONObject entry = new JSONObject();
-            entry.put("items", parseMatches(html));
+            entry.put("items", items);
             return entry;
         } catch (Exception e) {
             return null;
@@ -240,7 +284,7 @@ public final class RfefClient {
         return result;
     }
 
-    private static JSONArray parseMatches(String html) throws Exception {
+    static JSONArray parseMatches(String html) throws Exception {
         JSONArray items = new JSONArray();
         String[] chunks = ROW_SPLIT.split(html);
 

@@ -210,6 +210,12 @@ public class SourceContractTest {
                 + "revisa RfefClient.JOURNEY_SELECT", journeys);
         assertTrue("RFEF no expone ninguna jornada en el HTML", journeys.length() > 0);
 
+        assertTrue("La página inicial de RFEF no muestra ninguna jornada",
+                RfefClient.parseJourneyNumber(html) > 0);
+        JSONArray pageMatches = RfefClient.parseMatches(html);
+        assertTrue("La página inicial de RFEF no contiene ningún partido de As Celtas",
+                pageMatches.length() > 0);
+
         LocalDate min = LocalDate.of(2020, 1, 1);
         LocalDate max = LocalDate.now().plusYears(2);
         for (int i = 0; i < journeys.length(); i++) {

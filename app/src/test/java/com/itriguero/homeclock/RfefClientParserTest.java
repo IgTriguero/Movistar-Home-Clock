@@ -23,6 +23,14 @@ public class RfefClientParserTest {
         assertEquals("2026-11-15", journeys.getJSONArray(1).getString(1));
     }
 
+    @Test
+    public void parsesJornadaHeading() {
+        assertEquals(9, RfefClient.parseJourneyNumber(
+                "<h3 class=\"text-center mt-2\"> Jornada 9 </h3>"));
+        assertEquals(0, RfefClient.parseJourneyNumber("<h3>Sin jornada</h3>"));
+        assertEquals(0, RfefClient.parseJourneyNumber(null));
+    }
+
     private static String fixture() throws Exception {
         try (InputStream input = RfefClientParserTest.class
                 .getResourceAsStream("/fixtures/rfef_journeys.html")) {
