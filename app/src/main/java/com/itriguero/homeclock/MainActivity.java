@@ -10,8 +10,11 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
 import android.text.TextUtils;
 import android.text.format.DateUtils;
+import android.text.style.ForegroundColorSpan;
 import android.view.Gravity;
 import android.view.View;
 import android.view.Window;
@@ -50,6 +53,11 @@ public class MainActivity extends Activity {
     private static final int LOCATION_MAX_ATTEMPTS = 3;
     private static final long LOCATION_RETRY_1_MS = 15 * 60 * 1000L;
     private static final long LOCATION_RETRY_2_MS = 2 * 60 * 60 * 1000L;
+
+    private static final int SOURCE_COLOR_OK = 0xFF808080;
+    private static final int SOURCE_COLOR_CACHED = 0xFFB8B8B8;
+    private static final int SOURCE_COLOR_FAILED = 0xFFE0A85A;
+    private static final int SOURCE_COLOR_SEPARATOR = 0xFF808080;
 
     private TextView clock;
     private TextView date;
@@ -791,7 +799,8 @@ public class MainActivity extends Activity {
             syncMessage = getString(R.string.matches_partial,
                     errorSourceNames(snapshot));
         } else if (health == SourceHealthPolicy.GlobalHealth.CACHED) {
-            syncMessage = getString(R.string.matches_cached);
+            syncMessage = getString(R.string.matches_cached_sources,
+                    cachedSourceNames(snapshot));
         } else {
             syncMessage = "";
         }
@@ -891,37 +900,62 @@ public class MainActivity extends Activity {
 
         if (activeIds.isEmpty()) {
             matchSources.setText("");
-            matchSources.setTextColor(0xFF808080);
+            matchSources.setTextColor(SOURCE_COLOR_OK);
             matchSources.setContentDescription("");
             return;
         }
 
-        if (snapshot == null) {
-            // Sin snapshot (carga inicial) se conserva el aviso de las
-            // fuentes activas que ya constan como caídas en el diagnóstico.
-            List<String> labels = new ArrayList<>();
-            for (String id : activeIds) {
-                labels.add(persistedFooterLabel(health, id, sourceDisplayName(id), now));
-            }
-            matchSources.setText(TextUtils.join(" · ", labels));
-            matchSources.setTextColor(hasDownSources(health, now, activeIds)
-                    ? 0xFFE0A85A : 0xFF808080);
-            matchSources.setContentDescription(
-                    sourceFooterDescription(null, health, activeIds, now));
-            return;
-        }
-
-        List<String> labels = new ArrayList<>();
-        for (String id : activeIds) {
-            labels.add(sourceFooterLabel(snapshot, id, sourceDisplayName(id)));
-        }
-        matchSources.setText(TextUtils.join(" · ", labels));
-        matchSources.setTextColor(snapshot.hasErrors() || snapshot.stale
-                || hasCachedSources(snapshot)
-                || hasDownSources(health, now, activeIds)
-                ? 0xFFE0A85A : 0xFF808080);
+        matchSources.setText(sourceFooterText(snapshot, health, activeIds, now));
+        matchSources.setTextColor(SOURCE_COLOR_OK);
         matchSources.setContentDescription(
                 sourceFooterDescription(snapshot, health, activeIds, now));
+    }
+
+    /**
+     * Pie de fuentes con color por segmento: gris para las que responden, gris
+     * claro para las que se sirven de caché y ámbar solo para la que falla.
+     * Los separadores van en un gris más oscuro para no confundirlos con una
+     * fuente ni con el estado de caché.
+     */
+    private CharSequence sourceFooterText(MatchesSnapshot snapshot,
+                                          Map<String, SourceHealth> health,
+                                          List<String> activeIds,
+                                          long now) {
+        SpannableStringBuilder out = new SpannableStringBuilder();
+        for (int i = 0; i < activeIds.size(); i++) {
+            if (i > 0) appendColored(out, " · ", SOURCE_COLOR_SEPARATOR);
+
+            String id = activeIds.get(i);
+            SourceStatus status = snapshot == null ? null : snapshot.sources.get(id);
+            SourceHealth entry = health == null ? null : health.get(id);
+            boolean failed;
+            boolean cached;
+            if (status != null) {
+                failed = !isOkSource(status.state)
+                        || (entry != null && entry.attempts > 0 && entry.isDown(now));
+                cached = status.fromCache;
+            } else {
+                failed = entry != null && entry.attempts > 0
+                        && (!isOkSource(entry.state) || entry.isDown(now));
+                cached = entry != null && entry.attempts > 0 && entry.fromCache;
+            }
+
+            String label = sourceDisplayName(id);
+            if (failed) label += " ⚠";
+            if (cached) label += " (caché)";
+            int color = failed ? SOURCE_COLOR_FAILED
+                    : cached ? SOURCE_COLOR_CACHED : SOURCE_COLOR_OK;
+            appendColored(out, label, color);
+        }
+        return out;
+    }
+
+    private static void appendColored(SpannableStringBuilder out, String text,
+                                      int color) {
+        int start = out.length();
+        out.append(text);
+        out.setSpan(new ForegroundColorSpan(color), start, out.length(),
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
     }
 
     private List<String> activeSourceIds() {
@@ -935,22 +969,6 @@ public class MainActivity extends Activity {
         if (store == null) return Collections.emptyMap();
         DiagnosticsState state = store.state();
         return state == null ? Collections.emptyMap() : state.matches.sources;
-    }
-
-    private static boolean hasDownSources(Map<String, SourceHealth> health,
-                                          long now, List<String> activeIds) {
-        if (health == null || activeIds == null) return false;
-        for (String id : activeIds) {
-            if (SourceHealthPolicy.isDown(health.get(id), now)) return true;
-        }
-        return false;
-    }
-
-    private static String persistedFooterLabel(Map<String, SourceHealth> health,
-                                               String sourceId, String label,
-                                               long now) {
-        SourceHealth entry = health == null ? null : health.get(sourceId);
-        return entry != null && entry.isDown(now) ? label + " ⚠" : label;
     }
 
     /**
@@ -1011,25 +1029,6 @@ public class MainActivity extends Activity {
         return state == SourceState.OK || state == SourceState.EMPTY;
     }
 
-    private String sourceFooterLabel(MatchesSnapshot snapshot,
-                                     String sourceId, String label) {
-        SourceStatus status = snapshot.sources.get(sourceId);
-        // Una fuente no consultada no es una caída.
-        if (status == null) return label;
-        boolean ok = isOkSource(status.state);
-        if (status.fromCache) {
-            return ok ? label + " · caché" : label + " ⚠ · caché";
-        }
-        return ok ? label : label + " ⚠";
-    }
-
-    private static boolean hasCachedSources(MatchesSnapshot snapshot) {
-        for (SourceStatus status : snapshot.sources.values()) {
-            if (status != null && status.fromCache) return true;
-        }
-        return false;
-    }
-
     private String errorSourceNames(MatchesSnapshot snapshot) {
         StringBuilder names = new StringBuilder();
         for (SourceStatus status : snapshot.sources.values()) {
@@ -1041,6 +1040,22 @@ public class MainActivity extends Activity {
             names.append(sourceDisplayName(status.sourceId));
         }
         return names.length() == 0 ? getString(R.string.diag_source_error) : names.toString();
+    }
+
+    /**
+     * Nombres de las fuentes activas servidas desde caché, para que el
+     * subtítulo diga cuál es la que no está fresca.
+     */
+    private String cachedSourceNames(MatchesSnapshot snapshot) {
+        StringBuilder names = new StringBuilder();
+        for (String id : activeSourceIds()) {
+            SourceStatus status = snapshot.sources.get(id);
+            if (status == null || !status.fromCache) continue;
+            if (names.length() > 0) names.append(", ");
+            names.append(sourceDisplayName(id));
+        }
+        return names.length() == 0
+                ? getString(R.string.matches_cached) : names.toString();
     }
 
     private String sourceDisplayName(String sourceId) {

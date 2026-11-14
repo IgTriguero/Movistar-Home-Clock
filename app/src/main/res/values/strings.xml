@@ -193,6 +193,7 @@
     <string name="matches_stale_failed">Datos de %1$s · fallo de fuentes</string>
     <string name="matches_partial">Datos parciales · %1$s</string>
     <string name="matches_cached">Datos en caché</string>
+    <string name="matches_cached_sources">Datos en caché · %1$s</string>
     <string name="matches_in_play">en juego</string>
     <string name="matches_hour_tbd">hora por confirmar</string>
     <string name="matches_postponed">Aplazado</string>
