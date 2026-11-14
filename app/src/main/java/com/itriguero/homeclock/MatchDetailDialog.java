@@ -32,7 +32,10 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
@@ -57,7 +60,6 @@ final class MatchDetailDialog {
             "https://rfef.es/es/resultados?competition=33836146&group=33836147";
     private static final String CELTA_URL =
             "https://rccelta.es/equipos/as-celtas/partidos/?par=132417";
-    private static final String GOOGLE_SEARCH = "https://www.google.com/search?q=";
 
     private static final Locale ES = new Locale("es", "ES");
     private static final int SURFACE_STROKE = 0xFF2A2520;
@@ -82,8 +84,6 @@ final class MatchDetailDialog {
             new SimpleDateFormat("HH:mm", Locale.getDefault());
     private final SimpleDateFormat metaDateFormat =
             new SimpleDateFormat("EEE d MMM · HH:mm", ES);
-    private final SimpleDateFormat searchDateFormat =
-            new SimpleDateFormat("d MMM yyyy", ES);
     private final DateTimeFormatter shortDayFormat =
             DateTimeFormatter.ofPattern("d MMM", ES);
     private final NumberFormat numberFormat = NumberFormat.getIntegerInstance(ES);
@@ -1112,19 +1112,26 @@ final class MatchDetailDialog {
         int scrollY = tvScroll.getScrollY();
         tvContent.removeAllViews();
 
-        if (networks != null && !networks.isEmpty()) {
+        BroadcastInfo info = BroadcastCatalog.forMatch(match);
+        List<String> emisoras = cleanNetworks(networks);
+        boolean hasNetworks = !emisoras.isEmpty();
+
+        if (hasNetworks) {
             tvContent.addView(sectionHeader(R.string.detail_tv_title));
-            for (String network : networks) {
-                if (network == null || network.trim().isEmpty()) continue;
-                TextView value = textView(network.trim(), 17, R.color.detail_text_primary);
+            for (String network : emisoras) {
+                TextView value = textView(network, 17, R.color.detail_text_primary);
                 value.setPadding(0, dp(4), 0, dp(4));
                 tvContent.addView(value);
             }
-        } else {
+        } else if (!info.isCurated()) {
+            // Competición desconocida: el catálogo no puede confirmar emisora.
             tvContent.addView(messageView(R.string.detail_tv_none));
         }
 
-        TextView search = actionButton(R.string.detail_tv_search, this::openTvSearch);
+        addBroadcastCatalog(info, hasNetworks);
+
+        TextView search = actionButton(R.string.detail_tv_search,
+                () -> openTvSearch(info.searchUrl));
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -1137,24 +1144,59 @@ final class MatchDetailDialog {
         disclaimer.setPadding(0, dp(12), 0, 0);
         disclaimer.setLineSpacing(dp(2), 1f);
         tvContent.addView(disclaimer);
+
+        TextView reviewed = textView(activity.getString(
+                R.string.detail_tv_reviewed, BroadcastCatalog.SEASON),
+                12, R.color.detail_text_secondary);
+        reviewed.setPadding(0, dp(4), 0, 0);
+        tvContent.addView(reviewed);
+
         restoreScroll(tvScroll, scrollY);
     }
 
-    private void openTvSearch() {
-        long start = match.startMillis;
-        String query;
-        if (start > 0) {
-            query = activity.getString(R.string.detail_tv_search_query,
-                    safe(match.homeName), safe(match.awayName),
-                    searchDateFormat.format(new Date(start)));
-        } else {
-            query = activity.getString(R.string.detail_tv_search_query_no_date,
-                    safe(match.homeName), safe(match.awayName));
+    /**
+     * Catálogo curado por competición. En modo búsqueda solo se muestra el
+     * aviso, sin repetir la etiqueta del botón.
+     */
+    private void addBroadcastCatalog(BroadcastInfo info, boolean hasNetworks) {
+        if (info == null || !info.isCurated()) {
+            if (hasNetworks && info != null && !info.detail.isEmpty()) {
+                TextView detail = textView(info.detail, 13, R.color.detail_text_secondary);
+                detail.setPadding(0, dp(12), 0, 0);
+                detail.setLineSpacing(dp(2), 1f);
+                tvContent.addView(detail);
+            }
+            return;
         }
 
-        Intent intent = new Intent(Intent.ACTION_VIEW,
-                Uri.parse(GOOGLE_SEARCH + Uri.encode(query)));
-        openIntent(intent);
+        tvContent.addView(sectionHeader(R.string.detail_tv_catalog));
+
+        TextView label = textView(info.label, 17, R.color.detail_text_primary);
+        label.setTypeface(null, Typeface.BOLD);
+        label.setPadding(0, dp(2), 0, dp(4));
+        tvContent.addView(label);
+
+        if (!info.detail.isEmpty()) {
+            TextView detail = textView(info.detail, 13, R.color.detail_text_secondary);
+            detail.setLineSpacing(dp(2), 1f);
+            tvContent.addView(detail);
+        }
+    }
+
+    /** Nombres limpiados de dial y sin duplicados, conservando el orden de la fuente. */
+    private static List<String> cleanNetworks(List<String> networks) {
+        if (networks == null || networks.isEmpty()) return Collections.emptyList();
+        LinkedHashSet<String> unique = new LinkedHashSet<>();
+        for (String network : networks) {
+            String cleaned = BroadcastCatalog.cleanNetworkName(network);
+            if (!cleaned.isEmpty()) unique.add(cleaned);
+        }
+        return unique.isEmpty() ? Collections.emptyList() : new ArrayList<>(unique);
+    }
+
+    private void openTvSearch(String url) {
+        if (url == null || url.isEmpty()) return;
+        openUrl(url);
     }
 
     private void openUrl(String url) {

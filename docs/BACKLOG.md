@@ -91,9 +91,17 @@ cambios, alineaciones, estadísticas, estadio y árbitro.
 **Riesgos:** API no oficial y sin documentación; parsear de forma tolerante y
 no bloquear la pantalla principal si el detalle no responde.
 
-## 4. Dónde ver cada partido en España 💡 S/M
+## 4. Dónde ver cada partido en España ✅ S/M
 
-**Objetivo:** indicar en el detalle del partido (o en la fila) por dónde se
+**Implementado:** pestaña “Dónde ver” en el modal con emisoras de 365Scores,
+guía curada por competición (temporada 2026/27) y búsqueda directa.
+
+- `BroadcastCatalog` resuelve LaLiga, Champions, Premier, Copa, ACB, Euroliga,
+  2ª Federación Femenina, selección, Copa de la Reina, Supercopa y Europa League.
+- `cleanNetworkName` limpia nombres como “DAZN LaLiga (M55 O113)”.
+- Aviso de derechos y enlace de búsqueda; sin scrapeo ni streaming no oficial.
+
+**Objetivo original:** indicar en el detalle del partido (o en la fila) por dónde se
 puede ver en España.
 
 **Opciones valoradas:**

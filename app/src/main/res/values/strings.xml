@@ -259,11 +259,11 @@
     <string name="detail_source_no_detail">Esta fuente no ofrece detalle</string>
     <string name="detail_open_source">Abrir en %1$s</string>
     <string name="detail_tv_title">Emisoras</string>
+    <string name="detail_tv_catalog">Según competición</string>
     <string name="detail_tv_none">No hay emisora confirmada para este partido</string>
     <string name="detail_tv_disclaimer">Información orientativa para España; los derechos pueden cambiar. Confirma en la plataforma.</string>
     <string name="detail_tv_search">Buscar este partido</string>
-    <string name="detail_tv_search_query">dónde ver %1$s %2$s %3$s TV España</string>
-    <string name="detail_tv_search_query_no_date">dónde ver %1$s %2$s TV España</string>
+    <string name="detail_tv_reviewed">Revisado %1$s</string>
     <string name="detail_tv_no_browser">No hay navegador disponible</string>
     <string name="detail_a11y_home">Equipo local, %1$s</string>
     <string name="detail_a11y_away">Equipo visitante, %1$s</string>

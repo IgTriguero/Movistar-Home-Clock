@@ -54,6 +54,7 @@ SettingsActivity
 | `WeatherRepository` | Fetch multi-ciudad, merge de caché v2 y fallback offline. |
 | `WeatherPager` / `PageDotsView` | Paginador táctil del tiempo y puntos de posición. |
 | `MatchDetail*` / `MatchDetailDialog` | Detalle de 365Scores, caché de finalizados y modal por pestañas. |
+| `BroadcastCatalog` | Guía curada de TV por competición y búsqueda de respaldo. |
 | `MatchRepository` | Ejecuta las fuentes en paralelo, fusiona, deduplica y aplica caché. |
 | `Scores365Source` | Fútbol y baloncesto vía 365Scores. |
 | `RfefSource` | As Celtas en Liga (RFEF). |
@@ -191,7 +192,7 @@ Cada 5 minutos se aplica un desplazamiento de hasta ±4 dp siguiendo un anillo d
 
 ## 9. Calidad
 
-- **465 tests** unitarios: modelo, mapper, tiempo, temporada, kickoff, refresco, caché, repositorio, `SourceResult`, diagnóstico, salud de fuentes, codec/estado persistido, PSS/salidas, pixel shift, caché de escudos, ciudades, caché v2, pager, detección IP, detalle de partido y contrato.
+- **483 tests** unitarios: modelo, mapper, tiempo, temporada, kickoff, refresco, caché, repositorio, `SourceResult`, diagnóstico, salud de fuentes, codec/estado persistido, PSS/salidas, pixel shift, caché de escudos, ciudades, caché v2, pager, detección IP, detalle de partido, guía de TV y contrato.
 - **Contrato diario** con datos reales de 365Scores, Open-Meteo, RFEF y Celta.
 - **Soak test**: `tools/soak.sh` muestrea PID, PSS, actividad en primer plano y crashes/ANRs durante 72 h.
 - **Lint**: 0 errores; quedan avisos menores de rendimiento/estilo.
@@ -215,7 +216,7 @@ El detalle vivo, con notas de viabilidad, está en [`docs/BACKLOG.md`](docs/BACK
 1. ✅ Varias ciudades guardadas con swipe en la zona del tiempo.
 2. ✅ Primera ciudad detectada por IP, con botón manual “Usar mi ubicación”.
 3. ✅ Detalle de partido en un modal (goles, tarjetas, cambios, alineaciones y estadísticas).
-4. Dónde ver cada partido en España.
+4. ✅ Dónde ver cada partido en España, con guía por competición y búsqueda.
 5. Configuración de equipos desde la app (quitar IDs hardcodeados).
 6. Fallback de fútbol si 365Scores falla.
 7. ✅ Diagnóstico persistente entre procesos y aviso de fuente caída.
