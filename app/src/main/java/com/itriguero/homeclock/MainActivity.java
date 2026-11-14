@@ -48,6 +48,7 @@ public class MainActivity extends Activity {
     private static final long WEATHER_INTERVAL_MS = 15 * 60 * 1000L;
     private static final long MATCHES_IDLE_INTERVAL_MS = 5 * 60 * 1000L;
     private static final long BROWSE_TIMEOUT_MS = 60 * 1000L;
+    private static final long PANEL_AUTO_SHOW_MS = 60 * 1000L;
     private static final long UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000L;
     private static final long UPDATE_SNOOZE_MS = 24 * 60 * 60 * 1000L;
     private static final int LOCATION_MAX_ATTEMPTS = 3;
@@ -116,7 +117,6 @@ public class MainActivity extends Activity {
     private String syncMessage = "";
     private MatchesSnapshot lastSnapshot;
     private LocalDate browseDate;
-    private long browseDeadline;
     private String testDateOverride;
     private long lastWeatherFetch = 0;
     private long lastMatchesFetch = 0;
@@ -157,9 +157,28 @@ public class MainActivity extends Activity {
         public void run() {
             if (!running) return;
             browseDate = null;
-            browseDeadline = 0;
             updateBrowseSubtitle();
             refreshMatches();
+        }
+    };
+
+    /**
+     * Si el usuario oculta el panel con partidos, vuelve a mostrarlo pasado un
+     * rato para que la información no quede escondida para siempre.
+     */
+    private final Runnable panelAutoShow = new Runnable() {
+        @Override
+        public void run() {
+            if (!running || !showMatches || !panelHidden) return;
+            if (matches.isEmpty()) return;
+            if (trackedTeams == null || trackedTeams.activeCount() == 0) return;
+
+            panelHidden = false;
+            hiddenSignature = "";
+            matchPanel.setVisibility(View.VISIBLE);
+            updateCountdowns();
+            updatePanelToggle();
+            updateBrowseSubtitle();
         }
     };
 
@@ -325,7 +344,6 @@ public class MainActivity extends Activity {
             panelHidden = false;
             hiddenSignature = "";
             browseDate = null;
-            browseDeadline = 0;
             handler.removeCallbacks(browseTimeout);
             updatePanelToggle();
             if (!teamsEmpty) refreshMatches();
@@ -340,11 +358,19 @@ public class MainActivity extends Activity {
         applyNightMode();
         maybeCheckForUpdates();
         handler.post(this::maybeDetectLocation);
+
+        // Si el panel seguía oculto al salir, la cuenta atrás empieza de nuevo.
+        if (panelHidden) {
+            schedulePanelAutoShow();
+        } else {
+            cancelPanelAutoShow();
+        }
     }
 
     @Override
     protected void onPause() {
         resumed = false;
+        handler.removeCallbacks(panelAutoShow);
         if (matchDetailDialog != null) matchDetailDialog.onActivityPaused();
         handler.removeCallbacks(locationRetry);
         long now = System.currentTimeMillis();
@@ -374,6 +400,7 @@ public class MainActivity extends Activity {
         handler.removeCallbacks(weatherTick);
         handler.removeCallbacks(matchesTick);
         handler.removeCallbacks(browseTimeout);
+        handler.removeCallbacks(panelAutoShow);
         handler.removeCallbacks(locationRetry);
         // El store es un singleton del proceso: se vuelca, no se cierra.
         diagnosticsStore.flush();
@@ -685,6 +712,7 @@ public class MainActivity extends Activity {
     private void refreshMatches() {
         if (!showMatches) {
             handler.removeCallbacks(matchesTick);
+            cancelPanelAutoShow();
             matchPanel.setVisibility(View.GONE);
             updatePanelToggle();
             return;
@@ -750,6 +778,7 @@ public class MainActivity extends Activity {
     private void clearMatchPanelForNoTeams() {
         matches.clear();
         matchRows.clear();
+        cancelPanelAutoShow();
         if (matchList != null) matchList.removeAllViews();
         if (matchPanel != null) matchPanel.setVisibility(View.GONE);
         lastSnapshot = null;
@@ -784,6 +813,7 @@ public class MainActivity extends Activity {
         lastSnapshot = snapshot;
         if (!showMatches) {
             handler.removeCallbacks(matchesTick);
+            cancelPanelAutoShow();
             matchPanel.setVisibility(View.GONE);
             updatePanelToggle();
             return;
@@ -1072,9 +1102,11 @@ public class MainActivity extends Activity {
         if (list.isEmpty() && browseDate == null) {
             panelHidden = false;
             hiddenSignature = "";
+            cancelPanelAutoShow();
         } else if (!list.isEmpty() && panelHidden && !signature.equals(hiddenSignature)) {
             // Si aparece un partido nuevo, el panel oculto se vuelve a mostrar.
             panelHidden = false;
+            cancelPanelAutoShow();
         }
 
         matches.clear();
@@ -1083,6 +1115,7 @@ public class MainActivity extends Activity {
         matchList.removeAllViews();
 
         if (matches.isEmpty()) {
+            cancelPanelAutoShow();
             if (browseDate != null && !panelHidden) {
                 showEmptyBrowsePanel();
                 return;
@@ -1135,7 +1168,6 @@ public class MainActivity extends Activity {
     }
 
     private void startBrowseTimer() {
-        browseDeadline = System.currentTimeMillis() + BROWSE_TIMEOUT_MS;
         handler.removeCallbacks(browseTimeout);
         handler.postDelayed(browseTimeout, BROWSE_TIMEOUT_MS);
         updateBrowseSubtitle();
@@ -1148,7 +1180,9 @@ public class MainActivity extends Activity {
             panelHidden = true;
             hiddenSignature = matchSignature(matches);
             matchPanel.setVisibility(View.GONE);
+            schedulePanelAutoShow();
         } else {
+            cancelPanelAutoShow();
             panelHidden = false;
             if (matches.isEmpty() && browseDate == null) {
                 if (lastSnapshot != null && lastSnapshot.matches.isEmpty()
@@ -1178,16 +1212,28 @@ public class MainActivity extends Activity {
         panelToggle.setText(visible ? R.string.panel_hide : R.string.panel_show);
     }
 
+    private void schedulePanelAutoShow() {
+        handler.removeCallbacks(panelAutoShow);
+        if (!showMatches || !panelHidden || matches.isEmpty()) return;
+        if (trackedTeams == null || trackedTeams.activeCount() == 0) return;
+        handler.postDelayed(panelAutoShow, PANEL_AUTO_SHOW_MS);
+    }
+
+    private void cancelPanelAutoShow() {
+        handler.removeCallbacks(panelAutoShow);
+    }
+
     private void updateBrowseSubtitle() {
         if (matchSubtitle == null) return;
-        if (browseDate == null) {
-            matchSubtitle.setText(syncMessage.isEmpty()
-                    ? getString(R.string.matches_subtitle) : syncMessage);
+        if (browseDate != null) {
+            // El retorno automático sigue activo, pero sin contador visible.
+            matchSubtitle.setText("");
+            matchSubtitle.setVisibility(View.INVISIBLE);
             return;
         }
-        long remaining = Math.max(0, browseDeadline - System.currentTimeMillis());
-        long seconds = (remaining + 999) / 1000;
-        matchSubtitle.setText(getString(R.string.browse_return, seconds));
+        matchSubtitle.setVisibility(View.VISIBLE);
+        matchSubtitle.setText(syncMessage.isEmpty()
+                ? getString(R.string.matches_subtitle) : syncMessage);
     }
 
     private String matchTitlePrefix(LocalDate date) {

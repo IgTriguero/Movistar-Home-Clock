@@ -15,6 +15,7 @@ App Android ligera para un **Movistar Home RG3205W** en horizontal. Muestra un r
 - **Panel de partidos** con los equipos que elijas (hasta 10), escudos, marcador y estado. Por defecto: Real Madrid, Rayo, España y Liverpool de fútbol, Real Madrid de baloncesto y As Celtas.
 - **Buscador de equipos** en 365Scores para añadir cualquier club o selección de fútbol/baloncesto, con alta manual por ID. As Celtas se ofrece como sugerencia local porque no está en 365Scores.
 - **Equipos en pausa** sin borrarlos y lista vacía válida: si no sigues a nadie, el panel se oculta y no se consultan fuentes.
+- **Vuelta automática al reloj**: Ajustes se cierra solo tras 60 s sin interacción y un panel oculto vuelve a aparecer si hay partido. La navegación por días también regresa a hoy sin mostrar cuenta atrás.
 - **Detalle de partido** al tocar una fila: goles, tarjetas, cambios, alineaciones, estadísticas, estadio, árbitro y dónde ver. RFEF y Celta muestran el resumen básico y un enlace a su fuente.
 - **Dónde verlo en España**: emisoras de 365Scores cuando están disponibles, guía por competición 2026/27 y búsqueda directa, con aviso de que los derechos cambian.
 - **Minuto real de la API**, sin reloj local inventado: `34'`, `90+4'`, `4C 00:03`.

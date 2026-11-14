@@ -14,6 +14,8 @@ import android.text.InputFilter;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.text.TextWatcher;
+import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
@@ -52,6 +54,8 @@ public class SettingsActivity extends Activity {
             Scores365Source.ID, RfefSource.ID, CeltaSource.ID};
 
     private static final long TEAM_SEARCH_DEBOUNCE_MS = 350L;
+    /** Vuelve al reloj si Ajustes se queda abierto sin interacción. */
+    private static final long IDLE_FINISH_MS = 60_000L;
 
     private Prefs prefs;
 
@@ -107,11 +111,17 @@ public class SettingsActivity extends Activity {
     private final ExecutorService teamSearchExecutor = Executors.newSingleThreadExecutor();
     private final ExecutorService teamLogoExecutor = Executors.newSingleThreadExecutor();
     private final Handler teamDebounceHandler = new Handler(Looper.getMainLooper());
+    private final Handler idleHandler = new Handler(Looper.getMainLooper());
+    private final Runnable idleFinish = () -> {
+        if (isFinishing() || isDestroyed()) return;
+        finish();
+    };
     private final AtomicBoolean detectingLocation = new AtomicBoolean(false);
     private Runnable pendingTeamSearch;
     private int searchToken;
     private int locationToken;
     private int teamSearchToken;
+    private boolean resumed;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -235,6 +245,42 @@ public class SettingsActivity extends Activity {
         renderTeamList();
         applyTeamsReadOnlyControls();
         updateDiagnostics();
+        resumed = true;
+        restartIdleTimer();
+    }
+
+    @Override
+    protected void onPause() {
+        resumed = false;
+        idleHandler.removeCallbacks(idleFinish);
+        super.onPause();
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent event) {
+        restartIdleTimer();
+        return super.dispatchTouchEvent(event);
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        restartIdleTimer();
+        return super.dispatchKeyEvent(event);
+    }
+
+    /** Reinicia la cuenta atrás que devuelve el reloj tras un rato sin uso. */
+    private void restartIdleTimer() {
+        if (!resumed || isFinishing() || isDestroyed()) return;
+        idleHandler.removeCallbacks(idleFinish);
+        idleHandler.postDelayed(idleFinish, IDLE_FINISH_MS);
+    }
+
+    /** Muestra un diálogo y reinicia la inactividad al abrirlo y al cerrarlo. */
+    private void showDialog(AlertDialog dialog) {
+        if (dialog == null) return;
+        dialog.setOnDismissListener(ignored -> restartIdleTimer());
+        dialog.show();
+        restartIdleTimer();
     }
 
     @Override
@@ -243,6 +289,7 @@ public class SettingsActivity extends Activity {
         locationToken++;
         teamSearchToken++;
         teamDebounceHandler.removeCallbacksAndMessages(null);
+        idleHandler.removeCallbacksAndMessages(null);
         searchExecutor.shutdownNow();
         updateExecutor.shutdownNow();
         locationExecutor.shutdownNow();
@@ -541,14 +588,15 @@ public class SettingsActivity extends Activity {
             return;
         }
 
-        new AlertDialog.Builder(this)
+        AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle(R.string.settings_city_remove_title)
                 .setMessage(getString(
                         R.string.settings_city_remove_message, city.name))
                 .setPositiveButton(R.string.settings_city_remove_confirm,
-                        (dialog, which) -> removeCity(city))
+                        (d, which) -> removeCity(city))
                 .setNegativeButton(R.string.cancel, null)
-                .show();
+                .create();
+        showDialog(dialog);
     }
 
     private void removeCity(City city) {
@@ -935,14 +983,15 @@ public class SettingsActivity extends Activity {
             showTeamStatus(R.string.settings_teams_readonly);
             return;
         }
-        new AlertDialog.Builder(this)
+        AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle(R.string.settings_team_remove_title)
                 .setMessage(getString(
                         R.string.settings_team_remove_message, team.name))
                 .setPositiveButton(R.string.settings_team_remove_confirm,
-                        (dialog, which) -> removeTeam(team))
+                        (d, which) -> removeTeam(team))
                 .setNegativeButton(R.string.cancel, null)
-                .show();
+                .create();
+        showDialog(dialog);
     }
 
     private void removeTeam(TrackedTeam team) {
@@ -1052,6 +1101,20 @@ public class SettingsActivity extends Activity {
         input.setHintTextColor(0xFF808080);
         input.setFilters(new InputFilter[]{
                 new InputFilter.LengthFilter(12)});
+        input.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                restartIdleTimer();
+            }
+        });
         box.addView(input, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT));
@@ -1132,7 +1195,7 @@ public class SettingsActivity extends Activity {
                                 });
                             });
                         }));
-        dialog.show();
+        showDialog(dialog);
     }
 
     private void applyTeamsReadOnlyControls() {

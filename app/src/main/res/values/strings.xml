@@ -200,7 +200,6 @@
     <string name="matches_cancelled">Cancelado</string>
     <string name="matches_live">En vivo</string>
     <string name="matches_break">Descanso</string>
-    <string name="browse_return">Vuelve solo en %1$ds</string>
     <plurals name="matches_count">
         <item quantity="one">%1$s · %2$d PARTIDO</item>
         <item quantity="other">%1$s · %2$d PARTIDOS</item>

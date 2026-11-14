@@ -147,7 +147,7 @@ La caché de partidos es un JSON por fecha en `filesDir` (`matches_YYYY-MM-DD.js
 - El bloque es un paginador: swipe izquierda/derecha cambia de ciudad, con puntos de posición y resistencia en los extremos.
 - Panel de partidos a la derecha (40 % del ancho) con cabecera de día, lista y footer de fuentes.
 - El panel se puede ocultar con **OCULTAR / PARTIDOS**.
-- Las flechas ◀ ▶ navegan por días; tras 60 s vuelve a hoy.
+- Las flechas ◀ ▶ navegan por días; tras 60 s vuelve a hoy, sin contador visible. Si el usuario oculta el panel con partidos, reaparece solo tras 60 s. Ajustes se cierra solo tras 60 s sin interacción para dejar el reloj a la vista.
 - Si no hay partidos, el panel se oculta y el footer sigue disponible.
 
 ### Detalle de partido
