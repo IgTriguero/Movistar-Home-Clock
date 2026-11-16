@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HomeClock — Comparativa de tamaños de letra</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #000; }
+  body {
+    width: 1280px;
+    height: 800px;
+    overflow: hidden;
+    font-family: "Roboto", "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  .screen {
+    width: 1280px;
+    height: 800px;
+    background: #121212;
+    color: #FFFFFF;
+    padding: 28px 40px 24px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .title {
+    font-size: 34px;
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: 0;
+  }
+  .title span { color: #E0A85A; }
+  .subtitle {
+    margin-top: 6px;
+    font-size: 20px;
+    color: #CFCFCF;
+    line-height: 1.2;
+  }
+  .chart {
+    margin-top: 14px;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .chart-head,
+  .row {
+    display: grid;
+    grid-template-columns: 180px 1fr 1fr;
+    align-items: center;
+  }
+  .chart-head {
+    height: 38px;
+    border-bottom: 2px solid #2A2A2A;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: #7A7A7A;
+    text-transform: uppercase;
+  }
+  .chart-head .proposed { color: #E0A85A; }
+  .chart-head .now { color: #7A7A7A; }
+  .chart-head > div:nth-child(2),
+  .chart-head > div:nth-child(3) { padding-left: 18px; }
+
+  .row { border-bottom: 1px solid #242424; }
+  .row-label {
+    font-size: 22px;
+    color: #CFCFCF;
+    line-height: 1.2;
+  }
+  .cell {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    padding-left: 18px;
+    min-width: 0;
+  }
+  .cell .size {
+    font-size: 16px;
+    color: #7A7A7A;
+    white-space: nowrap;
+  }
+  .cell.proposed .size { color: #E0A85A; }
+  .cell .factor {
+    font-size: 16px;
+    color: #7A7A7A;
+    white-space: nowrap;
+  }
+  .cell.proposed .factor { color: #CFCFCF; }
+  .sample {
+    display: flex;
+    align-items: baseline;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .row.score { height: 126px; }
+  .s40score { font-size: 40px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
+  .s96 { font-size: 96px; font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: 0; }
+
+  .row.team { height: 70px; }
+  .s20 { font-size: 20px; font-weight: 700; line-height: 1.05; }
+  .s40team { font-size: 40px; font-weight: 500; line-height: 1.05; }
+
+  .row.status { height: 64px; }
+  .s15status { font-size: 15px; font-weight: 700; color: #FFD166; line-height: 1.1; }
+  .s40status { font-size: 40px; font-weight: 700; color: #FFD166; line-height: 1.1; }
+
+  .row.event { height: 92px; }
+  .s15 { font-size: 15px; font-weight: 400; line-height: 1.1; }
+  .s48 { font-size: 48px; font-weight: 700; line-height: 1.05; }
+
+  .row.minute { height: 56px; }
+  .s12 { font-size: 12px; font-weight: 700; color: #E0A85A; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .s28minute { font-size: 28px; font-weight: 700; color: #E0A85A; line-height: 1.1; font-variant-numeric: tabular-nums; }
+
+  .row.label { height: 56px; }
+  .s11 { font-size: 11px; color: #B0B0B0; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1.1; }
+  .s28 { font-size: 28px; font-weight: 700; color: #E0A85A; line-height: 1.1; }
+
+  .row.tab { height: 54px; }
+  .s14 { font-size: 14px; font-weight: 700; color: #E0A85A; letter-spacing: 0.04em; line-height: 1.1; }
+  .s30 { font-size: 30px; font-weight: 700; color: #E0A85A; letter-spacing: 0.02em; line-height: 1.1; }
+
+  .row.footer { height: 44px; border-bottom: none; }
+  .s12foot { font-size: 12px; color: #808080; line-height: 1.1; }
+  .s18foot { font-size: 18px; color: #A0A0A0; line-height: 1.1; }
+
+  .note {
+    margin-top: 10px;
+    font-size: 18px;
+    color: #CFCFCF;
+    line-height: 1.25;
+  }
+  .note strong { color: #FFFFFF; font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="screen">
+  <div class="title">Tamaños de letra <span>— ahora vs propuesta</span></div>
+  <div class="subtitle">Misma pantalla de 1280×800 · 1dp ≈ 1px · lectura a 1,5 m</div>
+
+  <div class="chart">
+    <div class="chart-head">
+      <div>Elemento</div>
+      <div class="now">Ahora</div>
+      <div class="proposed">Propuesta</div>
+    </div>
+
+    <div class="row score">
+      <div class="row-label">Marcador</div>
+      <div class="cell"><span class="sample s40score">1 - 2</span><span class="size">40sp</span></div>
+      <div class="cell proposed"><span class="sample s96">1 - 2</span><span class="size">96sp · ×2,4</span></div>
+    </div>
+
+    <div class="row team">
+      <div class="row-label">Equipo</div>
+      <div class="cell"><span class="sample s20">España</span><span class="size">20sp</span></div>
+      <div class="cell proposed"><span class="sample s40team">España</span><span class="size">40sp · ×2,0</span></div>
+    </div>
+
+    <div class="row status">
+      <div class="row-label">Estado</div>
+      <div class="cell"><span class="sample s15status">EN VIVO · 83:12</span><span class="size">15sp</span></div>
+      <div class="cell proposed"><span class="sample s40status">EN VIVO · 83:12</span><span class="size">40sp · ×2,7</span></div>
+    </div>
+
+    <div class="row event">
+      <div class="row-label">Evento</div>
+      <div class="cell"><span class="sample s15">Pedro Porro</span><span class="size">15sp</span></div>
+      <div class="cell proposed"><span class="sample s48">Pedro Porro</span><span class="size">48sp · ×3,2</span></div>
+    </div>
+
+    <div class="row minute">
+      <div class="row-label">Minuto</div>
+      <div class="cell"><span class="sample s12">21'</span><span class="size">12sp</span></div>
+      <div class="cell proposed"><span class="sample s28minute">21'</span><span class="size">28sp · ×2,3</span></div>
+    </div>
+
+    <div class="row label">
+      <div class="row-label">Etiqueta</div>
+      <div class="cell"><span class="sample s11">AMARILLA</span><span class="size">11sp</span></div>
+      <div class="cell proposed"><span class="sample s28">Amarilla</span><span class="size">28sp · ×2,5</span></div>
+    </div>
+
+    <div class="row tab">
+      <div class="row-label">Pestañas</div>
+      <div class="cell"><span class="sample s14">RESUMEN</span><span class="size">14sp</span></div>
+      <div class="cell proposed"><span class="sample s30">RESUMEN</span><span class="size">30sp · ×2,1</span></div>
+    </div>
+
+    <div class="row footer">
+      <div class="row-label">Pie</div>
+      <div class="cell"><span class="sample s12foot">Fuente: 365Scores</span><span class="size">12sp</span></div>
+      <div class="cell proposed"><span class="sample s18foot">Fuente: 365Scores</span><span class="size">18sp · ×1,5</span></div>
+    </div>
+  </div>
+
+  <div class="note"><strong>El marcador a 40sp ocupa 8,9′ a 1,5 m; a 96sp, 21,3′. Los eventos a 48sp, 10,7′; los detalles a 28sp, 6,2′.</strong> La propuesta no escala todo por igual: jerarquiza lo que se mira de lejos y deja el detalle para acercarse.</div>
+</div>
+</body>
+</html>

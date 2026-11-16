@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HomeClock — Detalle actual (1280×800)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #000; }
+  body {
+    width: 1280px;
+    height: 800px;
+    overflow: hidden;
+    font-family: "Roboto", "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Réplica de dialog_match_detail.xml: padding 20dp, fondo #121212. */
+  .screen {
+    width: 1280px;
+    height: 800px;
+    background: #121212;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Cabecera: competición 13sp + cierre 48dp */
+  .topline {
+    height: 48px;
+    flex: 0 0 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .competition {
+    font-size: 13px;
+    font-weight: 400;
+    color: #B0B0B0;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .close {
+    width: 48px;
+    height: 48px;
+    flex: 0 0 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #B0B0B0;
+    font-size: 22px;
+    font-weight: 400;
+    line-height: 1;
+  }
+
+  /* Marcador: 116dp; crestas 56dp; nombres 20sp; marcador 40sp; estado 15sp */
+  .scoreboard {
+    height: 116px;
+    flex: 0 0 116px;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+  }
+  .team {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 0;
+  }
+  .crest {
+    width: 56px;
+    height: 56px;
+    flex: 0 0 56px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    overflow: hidden;
+  }
+  .crest.spain {
+    background: linear-gradient(to bottom, #AA151B 0 25%, #F1BF00 25% 75%, #AA151B 75% 100%);
+  }
+  .crest.england {
+    background-color: #FFFFFF;
+    background-image:
+      linear-gradient(to right, transparent 40%, #CE1124 40%, #CE1124 60%, transparent 60%),
+      linear-gradient(to bottom, transparent 40%, #CE1124 40%, #CE1124 60%, transparent 60%);
+  }
+  .team-name {
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.05;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 340px;
+  }
+  .center {
+    padding: 0 12px;
+    text-align: center;
+  }
+  .score {
+    font-size: 40px;
+    font-weight: 700;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .status {
+    margin-top: 2px;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.1;
+    color: #FFD166;
+    white-space: nowrap;
+  }
+
+  /* Metadatos: 13sp, una línea */
+  .meta {
+    height: 16px;
+    flex: 0 0 16px;
+    font-size: 13px;
+    color: #B0B0B0;
+    line-height: 16px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Pestañas: 48dp, 14sp, selección solo por color */
+  .tabs {
+    height: 48px;
+    flex: 0 0 48px;
+    margin-top: 6px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .tab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: #B0B0B0;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+  .tab.active { color: #E0A85A; }
+
+  /* Contenido: lista de eventos + ficha de estadio */
+  .content {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    padding-top: 4px;
+  }
+  .section-header {
+    padding: 4px 0 8px;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #E0A85A;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .event-row {
+    display: flex;
+    align-items: center;
+    padding: 7px 0;
+  }
+  .minute {
+    width: 52px;
+    flex: 0 0 52px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #E0A85A;
+    font-variant-numeric: tabular-nums;
+  }
+  .event-body { flex: 1 1 auto; min-width: 0; }
+  .event-label {
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 1.2;
+    color: #B0B0B0;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .event-player {
+    font-size: 15px;
+    font-weight: 400;
+    line-height: 1.2;
+    color: #FFFFFF;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .event-player.major { font-weight: 700; }
+  .event-team,
+  .event-secondary {
+    font-size: 12px;
+    line-height: 1.2;
+    color: #B0B0B0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .divider {
+    height: 1px;
+    background: #2A2520;
+    margin: 2px 0;
+  }
+
+  .venue-card {
+    margin-top: 16px;
+    padding: 12px 14px;
+    background: #1C1A18;
+    border: 1px solid #2A2520;
+    border-radius: 12px;
+  }
+  .venue-name {
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #FFFFFF;
+  }
+  .venue-detail {
+    margin-top: 4px;
+    font-size: 13px;
+    line-height: 1.2;
+    color: #B0B0B0;
+  }
+
+  /* Pie: 12sp */
+  .footer {
+    height: 16px;
+    flex: 0 0 16px;
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 16px;
+    color: #808080;
+  }
+</style>
+</head>
+<body>
+<div class="screen">
+
+  <div class="topline">
+    <div class="competition">Amistoso internacional</div>
+    <div class="close">✕</div>
+  </div>
+
+  <div class="scoreboard">
+    <div class="team">
+      <div class="crest spain"></div>
+      <div class="team-name">España</div>
+    </div>
+
+    <div class="center">
+      <div class="score">1 - 2</div>
+      <div class="status">EN VIVO · 83:12</div>
+    </div>
+
+    <div class="team">
+      <div class="crest england"></div>
+      <div class="team-name">Inglaterra</div>
+    </div>
+  </div>
+
+  <div class="meta">sáb 15 nov · 21:00 · Metropolitano · Árbitro: Gil Manzano</div>
+
+  <div class="tabs">
+    <div class="tab active">RESUMEN</div>
+    <div class="tab">ALINEACIONES</div>
+    <div class="tab">ESTADÍSTICAS</div>
+    <div class="tab">DÓNDE VER</div>
+  </div>
+
+  <div class="content">
+    <div class="section-header">Eventos</div>
+
+    <div class="event-row">
+      <div class="minute">15'</div>
+      <div class="event-body">
+        <div class="event-label">Amarilla</div>
+        <div class="event-player">Declan Rice</div>
+        <div class="event-team">Inglaterra</div>
+      </div>
+    </div>
+    <div class="divider"></div>
+
+    <div class="event-row">
+      <div class="minute">21'</div>
+      <div class="event-body">
+        <div class="event-label">Gol</div>
+        <div class="event-player major">Pedro Porro</div>
+        <div class="event-team">España</div>
+      </div>
+    </div>
+    <div class="divider"></div>
+
+    <div class="event-row">
+      <div class="minute">45+2'</div>
+      <div class="event-body">
+        <div class="event-label">Gol</div>
+        <div class="event-player major">Harry Kane</div>
+        <div class="event-team">Inglaterra</div>
+      </div>
+    </div>
+    <div class="divider"></div>
+
+    <div class="event-row">
+      <div class="minute">60'</div>
+      <div class="event-body">
+        <div class="event-label">Cambio</div>
+        <div class="event-player">Morata</div>
+        <div class="event-team">España</div>
+        <div class="event-secondary">Sale Pedri</div>
+      </div>
+    </div>
+    <div class="divider"></div>
+
+    <div class="event-row">
+      <div class="minute">70'</div>
+      <div class="event-body">
+        <div class="event-label">Gol</div>
+        <div class="event-player major">Jude Bellingham</div>
+        <div class="event-team">Inglaterra</div>
+      </div>
+    </div>
+    <div class="divider"></div>
+
+    <div class="event-row">
+      <div class="minute">76'</div>
+      <div class="event-body">
+        <div class="event-label">Segunda amarilla</div>
+        <div class="event-player">Declan Rice</div>
+        <div class="event-team">Inglaterra</div>
+      </div>
+    </div>
+    <div class="divider"></div>
+
+    <div class="venue-card">
+      <div class="venue-name">Metropolitano</div>
+      <div class="venue-detail">Aforo 68.000 · Árbitro: Gil Manzano</div>
+    </div>
+  </div>
+
+  <div class="footer">Fuente: 365Scores · Actualizado 21:28</div>
+</div>
+</body>
+</html>

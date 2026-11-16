@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tarjeta roja 40x48dp con borde blanco: el color no es la única señal. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="40dp"
+    android:height="48dp"
+    android:viewportWidth="40"
+    android:viewportHeight="48">
+
+    <path
+        android:fillColor="@color/detail_card_red"
+        android:pathData="M4,0 H36 A4,4 0 0,1 40,4 V44 A4,4 0 0,1 36,48 H4 A4,4 0 0,1 0,44 V4 A4,4 0 0,1 4,0 Z" />
+
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M4,1 H36 A3,3 0 0,1 39,4 V44 A3,3 0 0,1 36,47 H4 A3,3 0 0,1 1,44 V4 A3,3 0 0,1 4,1 Z"
+        android:strokeColor="@color/detail_text_primary"
+        android:strokeWidth="2" />
+</vector>

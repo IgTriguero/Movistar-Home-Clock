@@ -10,11 +10,17 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
+import android.text.Spannable;
+import android.text.SpannableStringBuilder;
 import android.text.TextUtils;
+import android.text.style.ForegroundColorSpan;
+import android.text.style.StyleSpan;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
@@ -62,11 +68,19 @@ final class MatchDetailDialog {
             "https://rccelta.es/equipos/as-celtas/partidos/?par=132417";
 
     private static final Locale ES = new Locale("es", "ES");
-    private static final int SURFACE_STROKE = 0xFF2A2520;
     /** Fondo de la barra comparativa de estadísticas. */
     private static final int STAT_BAR_TRACK = 0xFF2A2A2A;
+    /** Separador gris entre el conteo de goles y los goleadores. */
+    private static final int GOAL_SEPARATOR = 0xFF7A7A7A;
     /** Los suplentes publicados suelen ser 7-12; se limita la lista por seguridad. */
     private static final int MAX_SUBSTITUTES = 12;
+
+    // Escala tipográfica del estudio de legibilidad (1280x800, 1dp ~ 1px).
+    private static final float EVENT_TEXT_SP = 48f;
+    private static final float EVENT_DETAIL_SP = 28f;
+    private static final float EVENT_SUB_SP = 36f;
+    private static final float MINUTE_SP = 28f;
+    private static final int TIMELINE_AXIS_WIDTH = 112;
 
     private final Activity activity;
     private final Match match;
@@ -96,7 +110,11 @@ final class MatchDetailDialog {
     private final TextView awayName;
     private final TextView score;
     private final TextView status;
-    private final TextView meta;
+    private final View liveDot;
+    private final LinearLayout homeGoalsRow;
+    private final LinearLayout awayGoalsRow;
+    private final TextView homeGoals;
+    private final TextView awayGoals;
     private final TextView footer;
     private final RadioGroup tabs;
     private final ScrollView summaryScroll;
@@ -141,7 +159,11 @@ final class MatchDetailDialog {
         awayName = dialog.findViewById(R.id.detailAwayName);
         score = dialog.findViewById(R.id.detailScore);
         status = dialog.findViewById(R.id.detailStatus);
-        meta = dialog.findViewById(R.id.detailMeta);
+        liveDot = dialog.findViewById(R.id.detailLiveDot);
+        homeGoalsRow = dialog.findViewById(R.id.detailHomeGoalsRow);
+        awayGoalsRow = dialog.findViewById(R.id.detailAwayGoalsRow);
+        homeGoals = dialog.findViewById(R.id.detailHomeGoals);
+        awayGoals = dialog.findViewById(R.id.detailAwayGoals);
         footer = dialog.findViewById(R.id.detailFooter);
         tabs = dialog.findViewById(R.id.detailTabs);
         summaryScroll = dialog.findViewById(R.id.summaryScroll);
@@ -325,6 +347,7 @@ final class MatchDetailDialog {
             renderError();
             renderLineups(null);
             renderStats(null);
+            renderTvNetworks(null);
             scheduleRefresh();
             return;
         }
@@ -404,37 +427,104 @@ final class MatchDetailDialog {
 
         boolean scoreKnown;
         String scoreText;
+        int homeCount;
+        int awayCount;
+        boolean started;
+        List<MatchEvent> events;
         if (loaded != null) {
             scoreKnown = loaded.scoreKnown;
-            scoreText = scoreKnown
-                    ? loaded.homeScore + " - " + loaded.awayScore
-                    : activity.getString(R.string.dash);
+            homeCount = loaded.homeScore;
+            awayCount = loaded.awayScore;
+            started = loaded.status.isInPlay() || loaded.status.isFinished();
+            events = loaded.events;
         } else {
             scoreKnown = match.scoreKnown && (match.isInPlay() || match.isFinished());
-            scoreText = scoreKnown
-                    ? Math.round(match.homeScore) + " - " + Math.round(match.awayScore)
-                    : activity.getString(R.string.dash);
+            homeCount = (int) Math.round(match.homeScore);
+            awayCount = (int) Math.round(match.awayScore);
+            started = match.isInPlay() || match.isFinished();
+            events = Collections.emptyList();
         }
+        scoreText = scoreKnown
+                ? homeCount + " - " + awayCount
+                : activity.getString(R.string.dash);
         score.setText(scoreText);
         score.setContentDescription(scoreKnown
                 ? activity.getString(R.string.detail_a11y_score, scoreText)
                 : activity.getString(R.string.detail_a11y_score_none));
 
+        MatchSummary summary = MatchSummary.from(homeCount, awayCount, events);
+        boolean showGoals = scoreKnown && started;
+        bindGoalLine(homeGoalsRow, homeGoals, summary, true, showGoals, home);
+        bindGoalLine(awayGoalsRow, awayGoals, summary, false, showGoals, away);
+
         String statusText = statusLine(loaded);
         status.setText(statusText);
         status.setContentDescription(activity.getString(R.string.detail_a11y_status, statusText));
+
         MatchStatus value = loaded != null ? loaded.status : match.status;
-        if (value != null && value.isInPlay()) {
+        boolean breakStatus = statusText.equals(
+                activity.getString(R.string.detail_status_break));
+        boolean live = value != null && value.isInPlay() && !breakStatus;
+        liveDot.setVisibility(live ? View.VISIBLE : View.GONE);
+
+        if (live) {
             status.setTextColor(activity.getColor(R.color.detail_live));
-        } else if (value != null && value.isScheduled()) {
+        } else if (value != null && (value.isScheduled()
+                || value.isFinished() || breakStatus)) {
             status.setTextColor(activity.getColor(R.color.detail_accent));
         } else {
             status.setTextColor(activity.getColor(R.color.detail_text_secondary));
         }
+    }
 
-        String metaText = metaLine(loaded);
-        meta.setText(metaText);
-        meta.setVisibility(metaText.isEmpty() ? View.GONE : View.VISIBLE);
+    /**
+     * Pinta la línea de goles de un equipo: balón, conteo oficial y hasta dos
+     * goleadores cortos. Si no hay goles, "Sin goles" a 36sp; si el partido no
+     * ha empezado o no se conoce el marcador, la línea se oculta.
+     */
+    private void bindGoalLine(LinearLayout row, TextView view, MatchSummary summary,
+                              boolean home, boolean show, String teamName) {
+        if (!show) {
+            row.setVisibility(View.GONE);
+            return;
+        }
+        row.setVisibility(View.VISIBLE);
+
+        int count = summary.count(home);
+        if (count <= 0) {
+            view.setTextSize(36);
+            view.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+            view.setTextColor(activity.getColor(R.color.detail_text_secondary));
+            view.setText(R.string.detail_no_goals);
+            view.setContentDescription(
+                    activity.getString(R.string.detail_a11y_no_goals, teamName));
+            return;
+        }
+
+        String names = summary.scorerLine(home, 2, count);
+        view.setTextSize(36);
+        SpannableStringBuilder text = new SpannableStringBuilder(String.valueOf(count));
+        text.setSpan(new StyleSpan(Typeface.BOLD), 0, text.length(),
+                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        text.setSpan(new ForegroundColorSpan(activity.getColor(R.color.detail_text_primary)),
+                0, text.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+
+        if (!names.isEmpty()) {
+            int separatorStart = text.length();
+            text.append(" · ");
+            text.setSpan(new ForegroundColorSpan(GOAL_SEPARATOR),
+                    separatorStart, text.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+            int namesStart = text.length();
+            text.append(names);
+            text.setSpan(new ForegroundColorSpan(
+                            activity.getColor(R.color.detail_text_secondary)),
+                    namesStart, text.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+
+        view.setText(text);
+        view.setContentDescription(names.isEmpty()
+                ? activity.getString(R.string.detail_a11y_goals_count, teamName, count)
+                : activity.getString(R.string.detail_a11y_goals, teamName, count, names));
     }
 
     private String statusLine(MatchDetail loaded) {
@@ -446,8 +536,7 @@ final class MatchDetailDialog {
                 ? loaded.gameTimeDisplay : safe(match.gameTimeDisplay);
 
         if (value.isInPlay()) {
-            String lower = statusText.toLowerCase(ES);
-            if (lower.contains("descanso") || lower.contains("half")) {
+            if (MatchTimeline.isBreakText(statusText)) {
                 return activity.getString(R.string.detail_status_break);
             }
             if (!gameTime.isEmpty() && !"live".equalsIgnoreCase(gameTime)) {
@@ -497,47 +586,23 @@ final class MatchDetailDialog {
         return date.format(shortDayFormat).toUpperCase(ES);
     }
 
-    private String metaLine(MatchDetail loaded) {
-        StringBuilder text = new StringBuilder();
-
-        long start = loaded != null && loaded.startMillis > 0
-                ? loaded.startMillis : match.startMillis;
-        if (start > 0) {
-            text.append(metaDateFormat.format(new Date(start)));
-        }
-
-        if (loaded != null && loaded.venue != null && !loaded.venue.name.isEmpty()) {
-            appendPart(text, loaded.venue.name);
-        }
-
-        Official referee = firstOfficial(loaded == null ? null : loaded.officials);
-        if (referee != null) {
-            appendPart(text, activity.getString(
-                    R.string.detail_official, referee.role, referee.name));
-        }
-        return text.toString();
-    }
-
     // ---------------------------------------------------------------------
-    // Resumen
+    // Resumen / cronología
     // ---------------------------------------------------------------------
 
     private void renderSummary(MatchDetail loaded) {
         int scrollY = summaryScroll.getScrollY();
         summaryContent.removeAllViews();
+        summaryContent.addView(timelineHeader());
 
         List<MatchEvent> events = loaded.events;
-        if (events == null || events.isEmpty()) {
+        if (events.isEmpty()) {
             summaryContent.addView(messageView(noEventsMessage(loaded.status)));
         } else {
-            summaryContent.addView(sectionHeader(R.string.detail_events_title));
-            for (int i = 0; i < events.size(); i++) {
-                summaryContent.addView(eventRow(loaded, events.get(i)));
-                if (i < events.size() - 1) summaryContent.addView(divider());
-            }
+            addTimeline(loaded, events);
         }
 
-        addVenueBlock(loaded);
+        addFicha(loaded);
         restoreScroll(summaryScroll, scrollY);
     }
 
@@ -560,52 +625,478 @@ final class MatchDetailDialog {
         return R.string.detail_no_events;
     }
 
-    private View eventRow(MatchDetail loaded, MatchEvent event) {
+    /** Cabecera de la cronología: crestas mini a cada lado y título centrado. */
+    private View timelineHeader() {
+        LinearLayout header = new LinearLayout(activity);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        header.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(36)));
+
+        ImageView home = miniCrest();
+        ImageView away = miniCrest();
+        loadCrest(home, match.homeLogoUrl);
+        loadCrest(away, match.awayLogoUrl);
+
+        TextView title = textView(R.string.detail_events_title,
+                28, R.color.detail_accent);
+        title.setTypeface(null, Typeface.BOLD);
+        title.setGravity(Gravity.CENTER);
+        title.setAllCaps(true);
+        title.setLetterSpacing(0.06f);
+        title.setIncludeFontPadding(false);
+
+        header.addView(home, new LinearLayout.LayoutParams(dp(28), dp(28)));
+        header.addView(title, new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        header.addView(away, new LinearLayout.LayoutParams(dp(28), dp(28)));
+        return header;
+    }
+
+    private ImageView miniCrest() {
+        ImageView view = new ImageView(activity);
+        view.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        view.setImageResource(R.drawable.ic_crest_placeholder);
+        view.setContentDescription(null);
+        view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        return view;
+    }
+
+    private void addTimeline(MatchDetail loaded, List<MatchEvent> events) {
+        boolean passedHalftime = MatchTimeline.hasPassedHalftime(
+                loaded.status, loaded.statusText, loaded.gameTimeDisplay);
+        int halftime = MatchTimeline.halftimeIndex(events, passedHalftime);
+        for (int i = 0; i < events.size(); i++) {
+            if (i == halftime) summaryContent.addView(dividerRow(R.string.detail_status_break));
+            summaryContent.addView(timelineRow(loaded, events.get(i)));
+        }
+        if (halftime == events.size()) {
+            summaryContent.addView(dividerRow(R.string.detail_status_break));
+        }
+        if (loaded.status.isFinished()) {
+            summaryContent.addView(dividerRow(R.string.detail_status_final));
+        }
+    }
+
+    /**
+     * Fila de una sola línea: local a la izquierda, minuto en el eje central y
+     * visitante a la derecha. Los eventos neutrales van centrados.
+     */
+    private View timelineRow(MatchDetail loaded, MatchEvent event) {
+        if (MatchTimeline.isNeutral(event)) return neutralRow(event);
+
+        boolean home = event.side == MatchEvent.Side.HOME;
         LinearLayout row = new LinearLayout(activity);
         row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setBaselineAligned(false);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(0, dp(7), 0, dp(7));
+        row.setMinimumHeight(dp(64));
+        row.setPadding(0, dp(4), 0, dp(4));
 
-        TextView minute = textView(event.display, 12, R.color.detail_accent);
-        minute.setTypeface(null, Typeface.BOLD);
-        minute.setGravity(Gravity.CENTER);
-        row.addView(minute, new LinearLayout.LayoutParams(
-                dp(52), LinearLayout.LayoutParams.WRAP_CONTENT));
+        LinearLayout cell = eventCell(event);
+        TextView minute = minuteView(event);
+        View spacer = new View(activity);
 
-        LinearLayout body = new LinearLayout(activity);
-        body.setOrientation(LinearLayout.VERTICAL);
-        body.setLayoutParams(new LinearLayout.LayoutParams(
-                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        LinearLayout.LayoutParams cellParams = new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        LinearLayout.LayoutParams spacerParams =
+                new LinearLayout.LayoutParams(0, 1, 1f);
+        LinearLayout.LayoutParams minuteParams = new LinearLayout.LayoutParams(
+                dp(TIMELINE_AXIS_WIDTH), LinearLayout.LayoutParams.WRAP_CONTENT);
 
-        TextView label = textView(eventLabel(event.type), 11, R.color.detail_text_secondary);
-        label.setAllCaps(true);
-        label.setLetterSpacing(0.08f);
-        body.addView(label);
-
-        String player = event.playerName.trim().isEmpty()
-                ? activity.getString(R.string.detail_player_unknown)
-                : event.playerName;
-        TextView playerView = textView(player, 15, R.color.detail_text_primary);
-        if (event.major) playerView.setTypeface(null, Typeface.BOLD);
-        body.addView(playerView);
-
-        String team = eventTeam(loaded, event);
-        if (!team.isEmpty()) {
-            body.addView(textView(team, 12, R.color.detail_text_secondary));
+        if (home) {
+            row.addView(cell, cellParams);
+            row.addView(minute, minuteParams);
+            row.addView(spacer, spacerParams);
+        } else {
+            row.addView(spacer, spacerParams);
+            row.addView(minute, minuteParams);
+            row.addView(cell, cellParams);
         }
 
-        if (event.type == MatchEvent.Type.SUBSTITUTION
-                && !event.secondaryName.trim().isEmpty()) {
-            body.addView(textView(activity.getString(
-                    R.string.detail_event_secondary, event.secondaryName),
-                    12, R.color.detail_text_secondary));
-        }
-
-        row.addView(body);
+        row.setFocusable(true);
+        row.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
+        row.setContentDescription(eventDescription(loaded, event));
+        markDescendantsDecorative(row);
         return row;
     }
 
+    /** Icono en el borde interior y texto hacia el exterior. */
+    private LinearLayout eventCell(MatchEvent event) {
+        boolean home = event.side == MatchEvent.Side.HOME;
+        LinearLayout cell = new LinearLayout(activity);
+        cell.setOrientation(LinearLayout.HORIZONTAL);
+        cell.setBaselineAligned(false);
+        cell.setGravity((home ? Gravity.END : Gravity.START) | Gravity.CENTER_VERTICAL);
+
+        View icon = eventIcon(event);
+
+        // El área de texto ocupa el ancho restante; dentro, el grupo nombre +
+        // detalle se pega al icono. Así el nombre nunca empuja al icono fuera.
+        LinearLayout textArea = new LinearLayout(activity);
+        textArea.setOrientation(LinearLayout.HORIZONTAL);
+        textArea.setGravity((home ? Gravity.END : Gravity.START) | Gravity.CENTER_VERTICAL);
+        EventTextGroup textGroup = eventTextGroup(event);
+        textArea.addView(textGroup.group, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+        if (textGroup.name != null) {
+            applyNamePriority(textArea, textGroup);
+        }
+
+        LinearLayout.LayoutParams textParams = new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(dp(48), dp(48));
+
+        if (home) {
+            textParams.setMarginEnd(dp(12));
+            cell.addView(textArea, textParams);
+            cell.addView(icon, iconParams);
+        } else {
+            iconParams.setMarginEnd(dp(12));
+            cell.addView(icon, iconParams);
+            cell.addView(textArea, textParams);
+        }
+        return cell;
+    }
+
+    /**
+     * Nombre 48sp (bold en los goles) y, al lado, asistencia 28sp o etiqueta
+     * 28sp. Son TextView separados para que la elipsis caiga en el detalle y
+     * nunca en el goleador. El cambio va en una línea a 36sp con autosize a
+     * 32sp si los dos nombres no caben.
+     */
+    private EventTextGroup eventTextGroup(MatchEvent event) {
+        LinearLayout group = new LinearLayout(activity);
+        group.setOrientation(LinearLayout.HORIZONTAL);
+        group.setGravity(Gravity.CENTER_VERTICAL);
+
+        if (event.type == MatchEvent.Type.SUBSTITUTION) {
+            TextView substitution = textView(substitutionText(event),
+                    EVENT_SUB_SP, R.color.detail_text_primary);
+            substitution.setSingleLine(true);
+            substitution.setEllipsize(TextUtils.TruncateAt.END);
+            substitution.setIncludeFontPadding(false);
+            substitution.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+            substitution.setAutoSizeTextTypeUniformWithConfiguration(
+                    32, 36, 1, TypedValue.COMPLEX_UNIT_SP);
+            group.addView(substitution);
+            return new EventTextGroup(group, null, null, null, "");
+        }
+
+        String player = event.playerName.trim();
+        if (player.isEmpty()) player = activity.getString(R.string.detail_player_unknown);
+
+        TextView name = textView(player, EVENT_TEXT_SP, R.color.detail_text_primary);
+        name.setSingleLine(true);
+        name.setEllipsize(TextUtils.TruncateAt.END);
+        name.setIncludeFontPadding(false);
+        name.setFontFeatureSettings("tnum");
+        name.setTypeface(Typeface.create("sans-serif-medium",
+                isGoal(event.type) ? Typeface.BOLD : Typeface.NORMAL));
+        group.addView(name);
+
+        TextView assist = null;
+        boolean goal = event.type == MatchEvent.Type.GOAL
+                || event.type == MatchEvent.Type.PENALTY_GOAL;
+        if (goal && !event.secondaryName.trim().isEmpty()) {
+            assist = textView("· " + event.secondaryName.trim(),
+                    EVENT_DETAIL_SP, R.color.detail_text_secondary);
+            assist.setSingleLine(true);
+            assist.setEllipsize(TextUtils.TruncateAt.END);
+            assist.setIncludeFontPadding(false);
+            assist.setPadding(dp(8), 0, 0, 0);
+            group.addView(assist);
+        }
+
+        TextView tag = null;
+        int label = eventLabel(event.type);
+        if (label != 0) {
+            tag = textView(label, EVENT_DETAIL_SP, R.color.detail_accent);
+            tag.setTypeface(null, Typeface.BOLD);
+            tag.setSingleLine(true);
+            tag.setEllipsize(TextUtils.TruncateAt.END);
+            tag.setIncludeFontPadding(false);
+            tag.setPadding(dp(8), 0, 0, 0);
+            group.addView(tag);
+        }
+        return new EventTextGroup(group, name, assist, tag, player);
+    }
+
+    /**
+     * Prioridad del nombre: se mide su ancho real y se limita la asistencia o
+     * la etiqueta al espacio que queda. Si el nombre completo no cabe, se
+     * prueba el nombre corto; la elipsis del nombre es el último recurso.
+     */
+    private void applyNamePriority(LinearLayout textArea, EventTextGroup text) {
+        final int[] appliedWidth = {0};
+        textArea.addOnLayoutChangeListener((view, left, top, right, bottom,
+                                            oldLeft, oldTop, oldRight, oldBottom) -> {
+            int width = right - left;
+            if (width <= 0 || width == appliedWidth[0]) return;
+            appliedWidth[0] = width;
+            textArea.post(() -> applyNamePriority(width, text));
+        });
+    }
+
+    private void applyNamePriority(int available, EventTextGroup text) {
+        String fullName = text.fullName;
+        int fullWidth = measureText(text.name, fullName);
+        String shortName = MatchSummary.shortName(fullName);
+        int shortWidth = measureText(text.name, shortName);
+        String chosen = MatchTimeline.fitName(
+                fullName, shortName, fullWidth, shortWidth, available);
+
+        if (chosen == null) {
+            // Ni el nombre corto cabe: el TextView aplica su elipsis.
+            if (!shortName.isEmpty()
+                    && !shortName.contentEquals(text.name.getText())) {
+                text.name.setText(shortName);
+            }
+        } else if (!chosen.contentEquals(text.name.getText())) {
+            text.name.setText(chosen);
+        }
+
+        int nameWidth = measureText(text.name, text.name.getText().toString());
+        int remaining = Math.max(0, available - nameWidth);
+
+        // La etiqueta va después de la asistencia: se reserva su ancho
+        // (incluido su padding) antes de limitar la asistencia.
+        if (text.tag != null) {
+            text.tag.setMaxWidth(remaining);
+            int tagWidth = Math.min(
+                    measureText(text.tag, text.tag.getText().toString())
+                            + text.tag.getTotalPaddingLeft()
+                            + text.tag.getTotalPaddingRight(),
+                    remaining);
+            remaining = Math.max(0, remaining - tagWidth);
+        }
+        if (text.assist != null) {
+            text.assist.setMaxWidth(remaining);
+        }
+    }
+
+    private static int measureText(TextView view, String text) {
+        if (text == null || text.isEmpty()) return 0;
+        return (int) Math.ceil(view.getPaint().measureText(text));
+    }
+
+    /** Vistas del bloque de texto de una fila, para ajustar el ancho del detalle. */
+    private static final class EventTextGroup {
+        final LinearLayout group;
+        final TextView name;
+        final TextView assist;
+        final TextView tag;
+        final String fullName;
+
+        EventTextGroup(LinearLayout group, TextView name, TextView assist,
+                       TextView tag, String fullName) {
+            this.group = group;
+            this.name = name;
+            this.assist = assist;
+            this.tag = tag;
+            this.fullName = fullName;
+        }
+    }
+
+    private String substitutionText(MatchEvent event) {
+        String in = event.playerName.trim();
+        String out = event.secondaryName.trim();
+        if (!in.isEmpty() && !out.isEmpty()) {
+            return activity.getString(R.string.detail_sub_line, in, out);
+        }
+        if (!in.isEmpty()) return activity.getString(R.string.detail_sub_in, in);
+        if (!out.isEmpty()) return activity.getString(R.string.detail_sub_out, out);
+        return activity.getString(R.string.detail_sub_change);
+    }
+
+    private TextView minuteView(MatchEvent event) {
+        String display = event.display == null ? "" : event.display.trim();
+        if (display.isEmpty()) display = activity.getString(R.string.dash);
+
+        TextView minute = textView(display, MINUTE_SP, R.color.detail_accent);
+        minute.setTypeface(null, Typeface.BOLD);
+        minute.setGravity(Gravity.CENTER);
+        minute.setFontFeatureSettings("tnum");
+        minute.setSingleLine(true);
+        minute.setIncludeFontPadding(false);
+        return minute;
+    }
+
+    /** VAR y demás eventos neutrales: fila centrada, sin lado. */
+    private View neutralRow(MatchEvent event) {
+        LinearLayout row = new LinearLayout(activity);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER);
+        row.setFocusable(true);
+        // 2dp por lado: el chip mide 40dp y la fila debe caber en el alto útil.
+        row.setPadding(0, dp(2), 0, dp(2));
+
+        LinearLayout group = new LinearLayout(activity);
+        group.setOrientation(LinearLayout.HORIZONTAL);
+        group.setGravity(Gravity.CENTER_VERTICAL);
+
+        boolean var = event.type == MatchEvent.Type.VAR;
+        if (var) {
+            TextView chip = textView(R.string.detail_event_var,
+                    18, R.color.detail_text_secondary);
+            chip.setTypeface(null, Typeface.BOLD);
+            chip.setGravity(Gravity.CENTER);
+            chip.setLetterSpacing(0.04f);
+            chip.setBackgroundResource(R.drawable.ic_ev_var);
+            group.addView(chip, new LinearLayout.LayoutParams(dp(48), dp(40)));
+        } else {
+            View icon = eventIcon(event);
+            group.addView(icon, new LinearLayout.LayoutParams(dp(48), dp(48)));
+        }
+
+        int labelRes = eventLabel(event.type);
+        if (!var && labelRes == 0) labelRes = eventTypeName(event.type);
+        TextView label = textView(var
+                        ? activity.getString(R.string.detail_var_review)
+                        : activity.getString(labelRes),
+                32, R.color.detail_text_secondary);
+        label.setGravity(Gravity.CENTER_VERTICAL);
+        label.setPadding(dp(var ? 12 : 8), 0, 0, 0);
+        group.addView(label);
+
+        TextView minute = minuteView(event);
+        minute.setPadding(dp(16), 0, 0, 0);
+        group.addView(minute);
+
+        row.addView(group, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+        row.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
+        row.setContentDescription(eventDescription(null, event));
+        markDescendantsDecorative(row);
+        return row;
+    }
+
+    private View eventIcon(MatchEvent event) {
+        int resource;
+        if (event.type == null) {
+            resource = R.drawable.ic_ev_other;
+        } else {
+            switch (event.type) {
+                case YELLOW_CARD:
+                    resource = R.drawable.ic_ev_yellow_card;
+                    break;
+                case RED_CARD:
+                    resource = R.drawable.ic_ev_red_card;
+                    break;
+                case SECOND_YELLOW:
+                    resource = R.drawable.ic_ev_second_yellow;
+                    break;
+                case SUBSTITUTION:
+                    resource = R.drawable.ic_ev_substitution;
+                    break;
+                case GOAL:
+                case PENALTY_GOAL:
+                case OWN_GOAL:
+                case DISALLOWED_GOAL:
+                    resource = R.drawable.ic_ev_goal;
+                    break;
+                default:
+                    resource = R.drawable.ic_ev_other;
+                    break;
+            }
+        }
+
+        ImageView icon = new ImageView(activity);
+        icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        icon.setImageResource(resource);
+        icon.setContentDescription(null);
+        icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        return icon;
+    }
+
+    /** Descripción completa de la fila para TalkBack. */
+    private String eventDescription(MatchDetail loaded, MatchEvent event) {
+        String minute = event.display == null
+                ? "" : event.display.replace("'", "").trim();
+        StringBuilder text = new StringBuilder();
+        if (!minute.isEmpty()) {
+            text.append(activity.getString(R.string.detail_a11y_minute, minute)).append(' ');
+        }
+
+        if (MatchTimeline.isNeutral(event)
+                && event.type != MatchEvent.Type.VAR) {
+            String neutralPlayer = event.playerName.trim();
+            if (neutralPlayer.isEmpty()) {
+                text.append(activity.getString(R.string.detail_a11y_neutral,
+                        activity.getString(eventTypeName(event.type))));
+            } else {
+                text.append(activity.getString(R.string.detail_a11y_neutral_player,
+                        activity.getString(eventTypeName(event.type)), neutralPlayer));
+            }
+            return text.toString().trim();
+        }
+        if (event.type == MatchEvent.Type.VAR) {
+            text.append(activity.getString(R.string.detail_a11y_var));
+            return text.toString().trim();
+        }
+
+        String player = event.playerName.trim().isEmpty()
+                ? activity.getString(R.string.detail_player_unknown)
+                : event.playerName.trim();
+        String team = loaded == null ? "" : eventTeam(loaded, event);
+        boolean hasSecondary = !event.secondaryName.trim().isEmpty();
+        String secondary = event.secondaryName.trim();
+
+        switch (event.type) {
+            case GOAL:
+                text.append(hasSecondary
+                        ? activity.getString(R.string.detail_a11y_goal_assist,
+                        team, player, secondary)
+                        : activity.getString(R.string.detail_a11y_goal, team, player));
+                break;
+            case PENALTY_GOAL:
+                text.append(hasSecondary
+                        ? activity.getString(R.string.detail_a11y_penalty_assist,
+                        team, player, secondary)
+                        : activity.getString(R.string.detail_a11y_penalty, team, player));
+                break;
+            case OWN_GOAL:
+                // El lado que publica la fuente para una propia no es fiable:
+                // se nombra al jugador y no se atribuye el gol a un equipo.
+                text.append(activity.getString(
+                        R.string.detail_a11y_own_goal, player));
+                break;
+            case DISALLOWED_GOAL:
+                text.append(activity.getString(
+                        R.string.detail_a11y_disallowed, team, player));
+                break;
+            case YELLOW_CARD:
+                text.append(activity.getString(
+                        R.string.detail_a11y_yellow, team, player));
+                break;
+            case RED_CARD:
+                text.append(activity.getString(
+                        R.string.detail_a11y_red, team, player));
+                break;
+            case SECOND_YELLOW:
+                text.append(activity.getString(
+                        R.string.detail_a11y_second_yellow, team, player));
+                break;
+            case SUBSTITUTION:
+                text.append(hasSecondary
+                        ? activity.getString(R.string.detail_a11y_substitution,
+                        team, player, secondary)
+                        : activity.getString(R.string.detail_a11y_substitution_in,
+                        team, player));
+                break;
+            case OTHER:
+            default:
+                text.append(activity.getString(
+                        R.string.detail_a11y_other, team, player));
+                break;
+        }
+        return text.toString().trim();
+    }
+
     private String eventTeam(MatchDetail loaded, MatchEvent event) {
+        if (loaded == null) return "";
         if (event.side == MatchEvent.Side.HOME) {
             return !loaded.homeName.isEmpty() ? loaded.homeName : safe(match.homeName);
         }
@@ -615,7 +1106,37 @@ final class MatchDetailDialog {
         return "";
     }
 
+    private static boolean isGoal(MatchEvent.Type type) {
+        return type == MatchEvent.Type.GOAL
+                || type == MatchEvent.Type.PENALTY_GOAL
+                || type == MatchEvent.Type.OWN_GOAL;
+    }
+
+    /** Etiqueta corta inline; 0 si la fila no lleva etiqueta. */
     private int eventLabel(MatchEvent.Type type) {
+        if (type == null) return R.string.detail_event_other;
+        switch (type) {
+            case PENALTY_GOAL:
+                return R.string.detail_event_penalty;
+            case OWN_GOAL:
+                return R.string.detail_event_own_goal_short;
+            case DISALLOWED_GOAL:
+                return R.string.detail_event_disallowed_short;
+            case YELLOW_CARD:
+                return R.string.detail_event_yellow;
+            case RED_CARD:
+                return R.string.detail_event_red;
+            case SECOND_YELLOW:
+                return R.string.detail_event_second_yellow_short;
+            case OTHER:
+                return R.string.detail_event_other;
+            default:
+                return 0;
+        }
+    }
+
+    /** Etiqueta larga, para las descripciones accesibles y los neutrales. */
+    private int eventTypeName(MatchEvent.Type type) {
         if (type == null) return R.string.detail_event_other;
         switch (type) {
             case GOAL:
@@ -641,31 +1162,61 @@ final class MatchDetailDialog {
         }
     }
 
-    private void addVenueBlock(MatchDetail loaded) {
+    /** Divisor de sección ("DESCANSO", "FINAL"): dos líneas de 2dp. */
+    private View dividerRow(int textRes) {
+        LinearLayout row = new LinearLayout(activity);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(0, dp(2), 0, dp(2));
+
+        View left = new View(activity);
+        left.setBackgroundColor(activity.getColor(R.color.detail_divider));
+        row.addView(left, new LinearLayout.LayoutParams(0, dp(2), 1f));
+
+        TextView label = textView(textRes, 28, R.color.detail_accent);
+        label.setTypeface(null, Typeface.BOLD);
+        label.setAllCaps(true);
+        label.setLetterSpacing(0.06f);
+        label.setIncludeFontPadding(false);
+        label.setPadding(dp(12), 0, dp(12), 0);
+        row.addView(label);
+
+        View right = new View(activity);
+        right.setBackgroundColor(activity.getColor(R.color.detail_divider));
+        row.addView(right, new LinearLayout.LayoutParams(0, dp(2), 1f));
+        return row;
+    }
+
+    /** Ficha plana al final del resumen: estadio, aforo, árbitro y fecha. */
+    private void addFicha(MatchDetail loaded) {
         Venue venue = loaded.venue;
         boolean hasVenue = venue != null && !venue.name.isEmpty();
         boolean hasNumbers = venue != null
                 && (venue.capacity > 0 || venue.attendance > 0);
-        boolean hasOfficials = false;
+
+        List<Official> officials = new ArrayList<>();
         if (loaded.officials != null) {
             for (Official official : loaded.officials) {
-                if (official != null && !official.name.isEmpty()) {
-                    hasOfficials = true;
-                    break;
+                if (official != null && !official.name.trim().isEmpty()) {
+                    officials.add(official);
                 }
             }
         }
-        if (!hasVenue && !hasNumbers && !hasOfficials) return;
+        long start = loaded.startMillis > 0 ? loaded.startMillis : match.startMillis;
+        if (!hasVenue && !hasNumbers && officials.isEmpty() && start <= 0) return;
 
-        LinearLayout card = new LinearLayout(activity);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setBackground(cardBackground());
-        card.setPadding(dp(14), dp(12), dp(14), dp(12));
+        LinearLayout block = new LinearLayout(activity);
+        block.setOrientation(LinearLayout.VERTICAL);
+        block.setPadding(0, dp(20), 0, dp(8));
+        block.addView(sectionHeader(R.string.detail_ficha, 24));
 
         if (hasVenue) {
-            TextView name = textView(venue.name, 15, R.color.detail_text_primary);
+            TextView name = textView(venue.name, 28, R.color.detail_text_primary);
             name.setTypeface(null, Typeface.BOLD);
-            card.addView(name);
+            name.setMaxLines(2);
+            name.setEllipsize(TextUtils.TruncateAt.END);
+            name.setPadding(0, dp(4), 0, 0);
+            block.addView(name);
         }
 
         if (hasNumbers) {
@@ -679,27 +1230,39 @@ final class MatchDetailDialog {
                 numbers.append(activity.getString(
                         R.string.detail_venue_attendance, number(venue.attendance)));
             }
-            TextView value = textView(numbers.toString(), 13, R.color.detail_text_secondary);
-            value.setPadding(0, dp(4), 0, 0);
-            card.addView(value);
+            TextView value = textView(numbers.toString(),
+                    24, R.color.detail_text_secondary);
+            value.setPadding(0, dp(2), 0, 0);
+            block.addView(value);
         }
 
-        if (hasOfficials) {
-            for (Official official : loaded.officials) {
-                if (official == null || official.name.isEmpty()) continue;
-                TextView value = textView(activity.getString(
-                                R.string.detail_official, official.role, official.name),
-                        13, R.color.detail_text_secondary);
-                value.setPadding(0, dp(4), 0, 0);
-                card.addView(value);
+        for (Official official : officials) {
+            TextView value = textView(activity.getString(
+                            R.string.detail_official, official.role, official.name),
+                    24, R.color.detail_text_secondary);
+            value.setPadding(0, dp(2), 0, 0);
+            block.addView(value);
+        }
+
+        if (start > 0) {
+            TextView value = textView(metaDateFormat.format(new Date(start)),
+                    24, R.color.detail_text_secondary);
+            value.setPadding(0, dp(2), 0, 0);
+            block.addView(value);
+        }
+
+        summaryContent.addView(block);
+    }
+
+    /** Los hijos de una fila no son nodos propios: la fila lleva la frase. */
+    private static void markDescendantsDecorative(ViewGroup group) {
+        for (int i = 0; i < group.getChildCount(); i++) {
+            View child = group.getChildAt(i);
+            child.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            if (child instanceof ViewGroup) {
+                markDescendantsDecorative((ViewGroup) child);
             }
         }
-
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT);
-        params.topMargin = dp(16);
-        summaryContent.addView(card, params);
     }
 
     // ---------------------------------------------------------------------
@@ -748,23 +1311,23 @@ final class MatchDetailDialog {
         LinearLayout column = new LinearLayout(activity);
         column.setOrientation(LinearLayout.VERTICAL);
 
-        TextView team = textView(teamName(loaded, lineup, home), 17, R.color.detail_text_primary);
-        team.setTypeface(null, Typeface.BOLD);
+        TextView team = textView(teamName(loaded, lineup, home), 36, R.color.detail_text_primary);
+        team.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         team.setMaxLines(2);
         team.setEllipsize(TextUtils.TruncateAt.END);
         column.addView(team);
 
         String details = lineupDetails(lineup);
         if (!details.isEmpty()) {
-            TextView subtitle = textView(details, 12, R.color.detail_text_secondary);
+            TextView subtitle = textView(details, 24, R.color.detail_text_secondary);
             subtitle.setMaxLines(2);
             subtitle.setEllipsize(TextUtils.TruncateAt.END);
-            subtitle.setPadding(0, dp(2), 0, dp(4));
+            subtitle.setPadding(0, dp(2), 0, dp(6));
             column.addView(subtitle);
         }
 
         if (!hasStarters(lineup)) {
-            TextView empty = textView(R.string.detail_lineups_empty, 13,
+            TextView empty = textView(R.string.detail_lineups_empty, 24,
                     R.color.detail_text_secondary);
             empty.setPadding(0, dp(8), 0, 0);
             column.addView(empty);
@@ -781,7 +1344,7 @@ final class MatchDetailDialog {
         if (!lineup.coach.isEmpty()) {
             TextView coach = textView(activity.getString(
                     R.string.detail_lineups_coach, lineup.coach),
-                    12, R.color.detail_text_secondary);
+                    24, R.color.detail_text_secondary);
             coach.setPadding(0, dp(8), 0, 0);
             column.addView(coach);
         }
@@ -791,7 +1354,7 @@ final class MatchDetailDialog {
     private void addLineupPlayers(LinearLayout column, int titleRes,
                                   List<LineupPlayer> players, int max) {
         if (players == null || players.isEmpty()) return;
-        column.addView(sectionHeader(titleRes));
+        column.addView(sectionHeader(titleRes, 24));
 
         int count = Math.min(players.size(), max);
         for (int i = 0; i < count; i++) {
@@ -808,39 +1371,40 @@ final class MatchDetailDialog {
         LinearLayout row = new LinearLayout(activity);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(0, dp(3), 0, dp(3));
+        row.setPadding(0, dp(6), 0, dp(6));
 
         TextView number = textView(player.number > 0 ? String.valueOf(player.number) : "",
-                14, R.color.detail_accent);
+                32, R.color.detail_accent);
         number.setTypeface(null, Typeface.BOLD);
         number.setGravity(Gravity.END);
+        number.setFontFeatureSettings("tnum");
         row.addView(number, new LinearLayout.LayoutParams(
-                dp(28), LinearLayout.LayoutParams.WRAP_CONTENT));
+                dp(56), LinearLayout.LayoutParams.WRAP_CONTENT));
 
-        TextView name = textView(player.name, 14, R.color.detail_text_primary);
+        TextView name = textView(player.name, 32, R.color.detail_text_primary);
         name.setSingleLine(true);
         name.setEllipsize(TextUtils.TruncateAt.END);
         LinearLayout.LayoutParams nameParams = new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-        nameParams.setMarginStart(dp(6));
+        nameParams.setMarginStart(dp(8));
         row.addView(name, nameParams);
 
         if (!player.positionShort.isEmpty()) {
-            TextView position = textView(player.positionShort, 11,
+            TextView position = textView(player.positionShort, 24,
                     R.color.detail_text_secondary);
             position.setSingleLine(true);
             position.setEllipsize(TextUtils.TruncateAt.END);
-            position.setMaxWidth(dp(64));
-            position.setPadding(dp(6), 0, 0, 0);
+            position.setMaxWidth(dp(96));
+            position.setPadding(dp(8), 0, 0, 0);
             row.addView(position);
         }
 
         if (player.rating >= 0) {
             TextView rating = textView(activity.getString(
                     R.string.detail_player_rating, player.rating),
-                    11, R.color.detail_live);
+                    24, R.color.detail_live);
             rating.setTypeface(null, Typeface.BOLD);
-            rating.setPadding(dp(6), 0, 0, 0);
+            rating.setPadding(dp(8), 0, 0, 0);
             row.addView(rating);
         }
         return row;
@@ -919,7 +1483,7 @@ final class MatchDetailDialog {
     }
 
     private TextView statsPendingHint() {
-        TextView hint = textView(R.string.detail_stats_pending, 12,
+        TextView hint = textView(R.string.detail_stats_pending, 28,
                 R.color.detail_text_secondary);
         hint.setGravity(Gravity.CENTER);
         hint.setPadding(0, 0, 0, dp(32));
@@ -929,12 +1493,12 @@ final class MatchDetailDialog {
     private TextView categoryHeader(String text) {
         TextView view = new TextView(activity);
         view.setText(text);
-        view.setTextSize(13);
+        view.setTextSize(28);
         view.setAllCaps(true);
-        view.setLetterSpacing(0.08f);
+        view.setLetterSpacing(0.06f);
         view.setTextColor(activity.getColor(R.color.detail_accent));
         view.setTypeface(null, Typeface.BOLD);
-        view.setPadding(0, dp(4), 0, dp(8));
+        view.setPadding(0, dp(8), 0, dp(8));
         return view;
     }
 
@@ -942,8 +1506,8 @@ final class MatchDetailDialog {
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT);
-        // 8dp de margen del bloque anterior + 8dp aquí = 16dp entre categorías.
-        if (!first) params.topMargin = dp(8);
+        // 16dp entre categorías.
+        if (!first) params.topMargin = dp(16);
         return params;
     }
 
@@ -956,40 +1520,43 @@ final class MatchDetailDialog {
         values.setGravity(Gravity.CENTER_VERTICAL);
         values.setBaselineAligned(false);
 
-        TextView home = textView(row.homeValue, 14, R.color.detail_text_primary);
+        TextView home = textView(row.homeValue, 40, R.color.detail_text_primary);
         home.setGravity(Gravity.END);
         home.setSingleLine(true);
         home.setEllipsize(TextUtils.TruncateAt.END);
+        home.setPadding(0, 0, dp(16), 0);
         if (row.major) home.setTypeface(null, Typeface.BOLD);
         values.addView(home, new LinearLayout.LayoutParams(
-                dp(70), LinearLayout.LayoutParams.WRAP_CONTENT));
+                dp(120), LinearLayout.LayoutParams.WRAP_CONTENT));
 
-        TextView name = textView(row.name, 13, R.color.detail_text_secondary);
+        TextView name = textView(row.name, 28, R.color.detail_text_secondary);
         name.setGravity(Gravity.CENTER);
         name.setMaxLines(2);
         name.setEllipsize(TextUtils.TruncateAt.END);
+        name.setPadding(dp(16), 0, dp(16), 0);
         values.addView(name, new LinearLayout.LayoutParams(
                 0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
 
-        TextView away = textView(row.awayValue, 14, R.color.detail_text_primary);
+        TextView away = textView(row.awayValue, 40, R.color.detail_text_primary);
         away.setGravity(Gravity.START);
         away.setSingleLine(true);
         away.setEllipsize(TextUtils.TruncateAt.END);
+        away.setPadding(dp(16), 0, 0, 0);
         if (row.major) away.setTypeface(null, Typeface.BOLD);
         values.addView(away, new LinearLayout.LayoutParams(
-                dp(70), LinearLayout.LayoutParams.WRAP_CONTENT));
+                dp(120), LinearLayout.LayoutParams.WRAP_CONTENT));
 
         box.addView(values);
 
         LinearLayout.LayoutParams barParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(4));
-        barParams.topMargin = dp(4);
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(16));
+        barParams.topMargin = dp(8);
         box.addView(statBar(row), barParams);
 
         LinearLayout.LayoutParams boxParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT);
-        boxParams.bottomMargin = dp(8);
+        boxParams.bottomMargin = dp(16);
         box.setLayoutParams(boxParams);
         return box;
     }
@@ -1007,7 +1574,7 @@ final class MatchDetailDialog {
 
         GradientDrawable track = new GradientDrawable();
         track.setColor(STAT_BAR_TRACK);
-        track.setCornerRadius(dp(2));
+        track.setCornerRadius(dp(8));
         bar.setBackground(track);
 
         View homeSegment = new View(activity);
@@ -1024,7 +1591,7 @@ final class MatchDetailDialog {
 
     /** Segmento redondeado solo en el extremo exterior de la barra. */
     private GradientDrawable barSegment(int color, boolean left) {
-        float radius = dp(2);
+        float radius = dp(8);
         GradientDrawable drawable = new GradientDrawable();
         drawable.setColor(color);
         drawable.setCornerRadii(left
@@ -1069,23 +1636,22 @@ final class MatchDetailDialog {
     private void renderError() {
         summaryContent.removeAllViews();
 
-        LinearLayout card = new LinearLayout(activity);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setBackground(cardBackground());
-        card.setPadding(dp(16), dp(16), dp(16), dp(16));
+        LinearLayout block = new LinearLayout(activity);
+        block.setOrientation(LinearLayout.VERTICAL);
+        block.setPadding(0, dp(32), 0, 0);
 
-        TextView title = textView(R.string.detail_error, 16, R.color.detail_text_primary);
-        title.setTypeface(null, Typeface.BOLD);
-        card.addView(title);
+        TextView title = textView(R.string.detail_error, 32, R.color.detail_text_primary);
+        title.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        block.addView(title);
 
         TextView retry = actionButton(R.string.detail_retry, this::retry);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT);
-        params.topMargin = dp(12);
-        card.addView(retry, params);
+        params.topMargin = dp(16);
+        block.addView(retry, params);
 
-        summaryContent.addView(card);
+        summaryContent.addView(block);
     }
 
     private void retry() {
@@ -1096,6 +1662,7 @@ final class MatchDetailDialog {
         lineupsContent.addView(messageView(R.string.detail_loading));
         statsContent.removeAllViews();
         statsContent.addView(messageView(R.string.detail_loading));
+        renderTv(null);
         loadDetail();
     }
 
@@ -1117,10 +1684,10 @@ final class MatchDetailDialog {
         boolean hasNetworks = !emisoras.isEmpty();
 
         if (hasNetworks) {
-            tvContent.addView(sectionHeader(R.string.detail_tv_title));
+            tvContent.addView(sectionHeader(R.string.detail_tv_title, 24));
             for (String network : emisoras) {
-                TextView value = textView(network, 17, R.color.detail_text_primary);
-                value.setPadding(0, dp(4), 0, dp(4));
+                TextView value = textView(network, 36, R.color.detail_text_primary);
+                value.setPadding(0, dp(6), 0, dp(6));
                 tvContent.addView(value);
             }
         } else if (!info.isCurated()) {
@@ -1140,14 +1707,14 @@ final class MatchDetailDialog {
         tvContent.addView(search, params);
 
         TextView disclaimer = textView(
-                R.string.detail_tv_disclaimer, 12, R.color.detail_text_secondary);
-        disclaimer.setPadding(0, dp(12), 0, 0);
+                R.string.detail_tv_disclaimer, 20, R.color.detail_text_secondary);
+        disclaimer.setPadding(0, dp(16), 0, 0);
         disclaimer.setLineSpacing(dp(2), 1f);
         tvContent.addView(disclaimer);
 
         TextView reviewed = textView(activity.getString(
                 R.string.detail_tv_reviewed, BroadcastCatalog.SEASON),
-                12, R.color.detail_text_secondary);
+                20, R.color.detail_text_secondary);
         reviewed.setPadding(0, dp(4), 0, 0);
         tvContent.addView(reviewed);
 
@@ -1161,23 +1728,23 @@ final class MatchDetailDialog {
     private void addBroadcastCatalog(BroadcastInfo info, boolean hasNetworks) {
         if (info == null || !info.isCurated()) {
             if (hasNetworks && info != null && !info.detail.isEmpty()) {
-                TextView detail = textView(info.detail, 13, R.color.detail_text_secondary);
-                detail.setPadding(0, dp(12), 0, 0);
+                TextView detail = textView(info.detail, 24, R.color.detail_text_secondary);
+                detail.setPadding(0, dp(16), 0, 0);
                 detail.setLineSpacing(dp(2), 1f);
                 tvContent.addView(detail);
             }
             return;
         }
 
-        tvContent.addView(sectionHeader(R.string.detail_tv_catalog));
+        tvContent.addView(sectionHeader(R.string.detail_tv_catalog, 24));
 
-        TextView label = textView(info.label, 17, R.color.detail_text_primary);
-        label.setTypeface(null, Typeface.BOLD);
-        label.setPadding(0, dp(2), 0, dp(4));
+        TextView label = textView(info.label, 36, R.color.detail_text_primary);
+        label.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        label.setPadding(0, dp(4), 0, dp(6));
         tvContent.addView(label);
 
         if (!info.detail.isEmpty()) {
-            TextView detail = textView(info.detail, 13, R.color.detail_text_secondary);
+            TextView detail = textView(info.detail, 24, R.color.detail_text_secondary);
             detail.setLineSpacing(dp(2), 1f);
             tvContent.addView(detail);
         }
@@ -1294,20 +1861,20 @@ final class MatchDetailDialog {
     private TextView messageView(String text) {
         TextView view = new TextView(activity);
         view.setText(text);
-        view.setTextSize(15);
+        view.setTextSize(32);
         view.setTextColor(activity.getColor(R.color.detail_text_secondary));
         view.setGravity(Gravity.CENTER);
         view.setPadding(0, dp(32), 0, dp(32));
-        view.setLineSpacing(dp(3), 1f);
+        view.setLineSpacing(dp(4), 1f);
         return view;
     }
 
-    private TextView sectionHeader(int textRes) {
+    private TextView sectionHeader(int textRes, float sizeSp) {
         TextView view = new TextView(activity);
         view.setText(textRes);
-        view.setTextSize(12);
+        view.setTextSize(sizeSp);
         view.setAllCaps(true);
-        view.setLetterSpacing(0.1f);
+        view.setLetterSpacing(0.06f);
         view.setTextColor(activity.getColor(R.color.detail_accent));
         view.setTypeface(null, Typeface.BOLD);
         view.setPadding(0, dp(4), 0, dp(8));
@@ -1331,35 +1898,17 @@ final class MatchDetailDialog {
     }
 
     private TextView actionButton(String text, Runnable action) {
-        TextView button = textView(text, 15, R.color.detail_bg);
-        button.setTypeface(null, Typeface.BOLD);
+        TextView button = textView(text, 30, R.color.detail_bg);
+        button.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
         button.setGravity(Gravity.CENTER);
-        button.setPadding(dp(20), dp(12), dp(20), dp(12));
-        button.setMinHeight(dp(48));
+        button.setPadding(dp(24), dp(12), dp(24), dp(12));
+        button.setMinHeight(dp(64));
+        button.setMinWidth(dp(64));
         button.setBackground(buttonBackground());
         button.setClickable(true);
         button.setFocusable(true);
         button.setOnClickListener(v -> action.run());
         return button;
-    }
-
-    private View divider() {
-        View view = new View(activity);
-        view.setBackgroundColor(SURFACE_STROKE);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(1));
-        params.topMargin = dp(2);
-        params.bottomMargin = dp(2);
-        view.setLayoutParams(params);
-        return view;
-    }
-
-    private GradientDrawable cardBackground() {
-        GradientDrawable background = new GradientDrawable();
-        background.setColor(activity.getColor(R.color.detail_surface));
-        background.setCornerRadius(dp(12));
-        background.setStroke(dp(1), SURFACE_STROKE);
-        return background;
     }
 
     private GradientDrawable buttonBackground() {
@@ -1375,14 +1924,6 @@ final class MatchDetailDialog {
 
     private String number(int value) {
         return numberFormat.format(value);
-    }
-
-    private static Official firstOfficial(List<Official> officials) {
-        if (officials == null) return null;
-        for (Official official : officials) {
-            if (official != null && !official.name.isEmpty()) return official;
-        }
-        return null;
     }
 
     private static void appendPart(StringBuilder text, String part) {

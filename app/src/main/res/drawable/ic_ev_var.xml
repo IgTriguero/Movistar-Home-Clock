@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Marco de monitor para el chip VAR (48x40dp); el texto va en el TextView. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="40dp"
+    android:viewportWidth="48"
+    android:viewportHeight="40">
+
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M8,3 H40 A5,5 0 0,1 45,8 V32 A5,5 0 0,1 40,37 H8 A5,5 0 0,1 3,32 V8 A5,5 0 0,1 8,3 Z"
+        android:strokeColor="@color/detail_text_secondary"
+        android:strokeWidth="2.5" />
+</vector>

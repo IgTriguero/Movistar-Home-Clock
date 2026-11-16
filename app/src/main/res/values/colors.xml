@@ -5,11 +5,22 @@
 
     <!-- Detalle de partido -->
     <color name="detail_bg">#121212</color>
-    <color name="detail_surface">#1C1A18</color>
     <color name="detail_text_primary">#FFFFFF</color>
-    <color name="detail_text_secondary">#B0B0B0</color>
+    <color name="detail_text_secondary">#CFCFCF</color>
+    <color name="detail_footer">#A0A0A0</color>
     <color name="detail_accent">#E0A85A</color>
     <color name="detail_live">#FFD166</color>
     <color name="detail_bar_home">#E0A85A</color>
-    <color name="detail_bar_away">#7A7A7A</color>
+    <color name="detail_bar_away">#4FC3F7</color>
+
+    <!-- Pestañas, cierre y cronología -->
+    <color name="detail_tab_bg_active">#2A2118</color>
+    <color name="detail_close_bg">#1B1B1B</color>
+    <color name="detail_close_stroke">#2A2A2A</color>
+    <color name="detail_divider">#5A5A5A</color>
+    <color name="detail_scroll_thumb">#808080</color>
+    <color name="detail_card_yellow">#FFC400</color>
+    <color name="detail_card_red">#E53935</color>
+    <color name="detail_sub_in">#43A047</color>
+    <color name="detail_sub_out">#E53935</color>
 </resources>

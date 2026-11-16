@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Balón de fútbol: decorativo, la fila lleva la descripción accesible. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M24,5 A19,19 0 0,1 24,43 A19,19 0 0,1 24,5 Z"
+        android:strokeColor="@color/detail_text_primary"
+        android:strokeWidth="3" />
+
+    <path
+        android:fillColor="@color/detail_text_primary"
+        android:pathData="M24,13 L31.6,18.5 L28.7,27.4 L19.3,27.4 L16.4,18.5 Z" />
+
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M24,13 V5.5 M31.6,18.5 L38.8,16.1 M28.7,27.4 L33.2,33.6 M19.3,27.4 L14.8,33.6 M16.4,18.5 L9.2,16.1"
+        android:strokeColor="@color/detail_text_primary"
+        android:strokeLineCap="round"
+        android:strokeWidth="3" />
+</vector>

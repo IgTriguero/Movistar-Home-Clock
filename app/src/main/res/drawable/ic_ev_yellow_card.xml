@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tarjeta amarilla 40x48dp. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="40dp"
+    android:height="48dp"
+    android:viewportWidth="40"
+    android:viewportHeight="48">
+
+    <path
+        android:fillColor="@color/detail_card_yellow"
+        android:pathData="M4,0 H36 A4,4 0 0,1 40,4 V44 A4,4 0 0,1 36,48 H4 A4,4 0 0,1 0,44 V4 A4,4 0 0,1 4,0 Z" />
+</vector>

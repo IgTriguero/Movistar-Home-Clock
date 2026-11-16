@@ -1619,8 +1619,7 @@ public class MainActivity extends Activity {
 
     private String liveLabel(Match m) {
         String status = m.statusText == null ? "" : m.statusText;
-        String statusLower = status.toLowerCase(Locale.ROOT);
-        if (statusLower.contains("descanso") || statusLower.contains("half")) {
+        if (MatchTimeline.isBreakText(status)) {
             return getString(R.string.matches_break);
         }
 

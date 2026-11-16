@@ -4,215 +4,355 @@
     android:layout_height="match_parent"
     android:background="@drawable/bg_match_detail"
     android:orientation="vertical"
-    android:padding="20dp">
+    android:paddingStart="16dp"
+    android:paddingEnd="16dp">
 
-    <!-- Cabecera fija: competición y cierre -->
-    <LinearLayout
+    <!-- Línea superior: competición y cierre, 64dp -->
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:layout_height="64dp">
 
         <TextView
             android:id="@+id/detailCompetition"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="72dp"
             android:ellipsize="end"
-            android:letterSpacing="0.06"
-            android:singleLine="true"
+            android:gravity="center_vertical"
+            android:includeFontPadding="false"
+            android:letterSpacing="0.04"
+            android:maxLines="1"
+            android:fontFamily="sans-serif-medium"
+            android:textAllCaps="true"
             android:textColor="@color/detail_text_secondary"
-            android:textSize="13sp" />
+            android:textSize="24sp" />
 
         <TextView
             android:id="@+id/detailClose"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:layout_gravity="center_vertical|end"
+            android:background="@drawable/bg_detail_close"
             android:clickable="true"
             android:contentDescription="@string/detail_close_desc"
             android:focusable="true"
             android:gravity="center"
+            android:includeFontPadding="false"
             android:text="@string/detail_close"
             android:textColor="@color/detail_text_secondary"
-            android:textSize="22sp" />
-    </LinearLayout>
+            android:textSize="34sp" />
+    </FrameLayout>
 
-    <!-- Marcador -->
+    <!-- Marcador 96sp, nombres 40sp y goles 36sp -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="116dp"
+        android:layout_height="wrap_content"
         android:baselineAligned="false"
         android:gravity="center_vertical"
+        android:minHeight="140dp"
         android:orientation="horizontal">
 
+        <!-- Local: cresta y texto a la derecha -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:gravity="center_horizontal"
-            android:orientation="vertical">
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
             <ImageView
                 android:id="@+id/detailHomeCrest"
-                android:layout_width="56dp"
-                android:layout_height="56dp"
+                android:layout_width="80dp"
+                android:layout_height="80dp"
+                android:layout_marginEnd="16dp"
                 android:contentDescription="@null"
                 android:importantForAccessibility="no"
                 android:scaleType="fitCenter"
                 android:src="@drawable/ic_crest_placeholder" />
 
-            <TextView
-                android:id="@+id/detailHomeName"
-                android:layout_width="match_parent"
-                android:layout_height="56dp"
-                android:autoSizeMaxTextSize="20sp"
-                android:autoSizeMinTextSize="11sp"
-                android:autoSizeStepGranularity="1sp"
-                android:autoSizeTextType="uniform"
-                android:gravity="center"
-                android:maxLines="2"
-                android:textColor="@color/detail_text_primary"
-                android:textSize="20sp"
-                android:textStyle="bold" />
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/detailHomeName"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:autoSizeMaxTextSize="40sp"
+                    android:autoSizeMinTextSize="30sp"
+                    android:autoSizeStepGranularity="1sp"
+                    android:autoSizeTextType="uniform"
+                    android:ellipsize="end"
+                    android:fontFamily="sans-serif-medium"
+                    android:gravity="start"
+                    android:includeFontPadding="false"
+                    android:maxLines="2"
+                    android:textColor="@color/detail_text_primary"
+                    android:textSize="40sp" />
+
+                <LinearLayout
+                    android:id="@+id/detailHomeGoalsRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:gravity="start|center_vertical"
+                    android:orientation="horizontal">
+
+                    <ImageView
+                        android:layout_width="26dp"
+                        android:layout_height="26dp"
+                        android:contentDescription="@null"
+                        android:importantForAccessibility="no"
+                        android:scaleType="fitCenter"
+                        android:src="@drawable/ic_ev_goal" />
+
+                    <TextView
+                        android:id="@+id/detailHomeGoals"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:ellipsize="end"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:paddingStart="6dp"
+                        android:paddingEnd="0dp"
+                        android:textColor="@color/detail_text_secondary"
+                        android:textSize="36sp" />
+                </LinearLayout>
+            </LinearLayout>
         </LinearLayout>
 
+        <!-- Centro: marcador y estado. La caja de línea de Roboto (1,17em)
+             es más alta que el line-height del mockup; el marcador vive en un
+             contenedor de 96dp y el TextView interno es más alto para que el
+             autosize no lo encoja. Se recorta solo el aire vacío. -->
         <LinearLayout
-            android:layout_width="wrap_content"
+            android:layout_width="320dp"
             android:layout_height="wrap_content"
             android:gravity="center"
-            android:orientation="vertical"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp">
+            android:orientation="vertical">
 
-            <TextView
-                android:id="@+id/detailScore"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                android:maxLines="1"
-                android:textColor="@color/detail_text_primary"
-                android:textSize="40sp"
-                android:textStyle="bold" />
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="96dp">
 
-            <TextView
-                android:id="@+id/detailStatus"
-                android:layout_width="wrap_content"
+                <!-- 136dp deja aire para que el autosize no encoja el 96sp ni
+                     a escala 1,15×; el FrameLayout recorta solo el leading. -->
+                <TextView
+                    android:id="@+id/detailScore"
+                    android:layout_width="match_parent"
+                    android:layout_height="136dp"
+                    android:layout_gravity="center"
+                    android:autoSizeMaxTextSize="96sp"
+                    android:autoSizeMinTextSize="64sp"
+                    android:autoSizeStepGranularity="2sp"
+                    android:autoSizeTextType="uniform"
+                    android:fontFeatureSettings="tnum"
+                    android:gravity="center"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:textColor="@color/detail_text_primary"
+                    android:textSize="96sp"
+                    android:textStyle="bold" />
+            </FrameLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
                 android:gravity="center"
-                android:maxLines="2"
-                android:textColor="@color/detail_accent"
-                android:textSize="15sp"
-                android:textStyle="bold" />
+                android:orientation="horizontal">
+
+                <View
+                    android:id="@+id/detailLiveDot"
+                    android:layout_width="12dp"
+                    android:layout_height="12dp"
+                    android:layout_marginEnd="8dp"
+                    android:background="@drawable/bg_detail_live_dot"
+                    android:importantForAccessibility="no"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/detailStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:autoSizeMaxTextSize="40sp"
+                    android:autoSizeMinTextSize="32sp"
+                    android:autoSizeStepGranularity="1sp"
+                    android:autoSizeTextType="uniform"
+                    android:ellipsize="end"
+                    android:fontFeatureSettings="tnum"
+                    android:gravity="center"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:textColor="@color/detail_live"
+                    android:textSize="40sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
         </LinearLayout>
 
+        <!-- Visitante: espejo, texto y cresta -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:gravity="center_horizontal"
-            android:orientation="vertical">
+            android:gravity="center_vertical|end"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="end"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/detailAwayName"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:autoSizeMaxTextSize="40sp"
+                    android:autoSizeMinTextSize="30sp"
+                    android:autoSizeStepGranularity="1sp"
+                    android:autoSizeTextType="uniform"
+                    android:ellipsize="end"
+                    android:fontFamily="sans-serif-medium"
+                    android:gravity="end"
+                    android:includeFontPadding="false"
+                    android:maxLines="2"
+                    android:textColor="@color/detail_text_primary"
+                    android:textSize="40sp" />
+
+                <LinearLayout
+                    android:id="@+id/detailAwayGoalsRow"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:gravity="end|center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/detailAwayGoals"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:ellipsize="end"
+                        android:gravity="end"
+                        android:includeFontPadding="false"
+                        android:maxLines="1"
+                        android:paddingStart="0dp"
+                        android:paddingEnd="6dp"
+                        android:textColor="@color/detail_text_secondary"
+                        android:textSize="36sp" />
+
+                    <ImageView
+                        android:layout_width="26dp"
+                        android:layout_height="26dp"
+                        android:contentDescription="@null"
+                        android:importantForAccessibility="no"
+                        android:scaleType="fitCenter"
+                        android:src="@drawable/ic_ev_goal" />
+                </LinearLayout>
+            </LinearLayout>
 
             <ImageView
                 android:id="@+id/detailAwayCrest"
-                android:layout_width="56dp"
-                android:layout_height="56dp"
+                android:layout_width="80dp"
+                android:layout_height="80dp"
+                android:layout_marginStart="16dp"
                 android:contentDescription="@null"
                 android:importantForAccessibility="no"
                 android:scaleType="fitCenter"
                 android:src="@drawable/ic_crest_placeholder" />
-
-            <TextView
-                android:id="@+id/detailAwayName"
-                android:layout_width="match_parent"
-                android:layout_height="56dp"
-                android:autoSizeMaxTextSize="20sp"
-                android:autoSizeMinTextSize="11sp"
-                android:autoSizeStepGranularity="1sp"
-                android:autoSizeTextType="uniform"
-                android:gravity="center"
-                android:maxLines="2"
-                android:textColor="@color/detail_text_primary"
-                android:textSize="20sp"
-                android:textStyle="bold" />
         </LinearLayout>
     </LinearLayout>
 
-    <TextView
-        android:id="@+id/detailMeta"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:ellipsize="end"
-        android:singleLine="true"
-        android:textColor="@color/detail_text_secondary"
-        android:textSize="13sp" />
-
-    <!-- Pestañas -->
+    <!-- Pestañas 72dp, 30sp y subrayado en la activa -->
     <RadioGroup
         android:id="@+id/detailTabs"
         android:layout_width="match_parent"
-        android:layout_height="48dp"
-        android:layout_marginTop="6dp"
+        android:layout_height="72dp"
         android:orientation="horizontal">
 
         <RadioButton
             android:id="@+id/tabSummary"
             android:layout_width="0dp"
-            android:layout_height="48dp"
+            android:layout_height="72dp"
             android:layout_weight="1"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:background="@drawable/bg_detail_tab"
             android:button="@null"
+            android:ellipsize="end"
             android:gravity="center"
-            android:letterSpacing="0.04"
-            android:singleLine="true"
+            android:includeFontPadding="false"
+            android:letterSpacing="0.02"
+            android:maxLines="1"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:padding="0dp"
             android:text="@string/detail_tab_summary"
             android:textColor="@color/detail_tab_text"
-            android:textSize="14sp"
+            android:textSize="30sp"
             android:textStyle="bold" />
 
         <RadioButton
             android:id="@+id/tabLineups"
             android:layout_width="0dp"
-            android:layout_height="48dp"
+            android:layout_height="72dp"
             android:layout_weight="1"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:background="@drawable/bg_detail_tab"
             android:button="@null"
+            android:ellipsize="end"
             android:gravity="center"
-            android:letterSpacing="0.04"
-            android:singleLine="true"
+            android:includeFontPadding="false"
+            android:letterSpacing="0.02"
+            android:maxLines="1"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:padding="0dp"
             android:text="@string/detail_tab_lineups"
             android:textColor="@color/detail_tab_text"
-            android:textSize="14sp"
+            android:textSize="30sp"
             android:textStyle="bold" />
 
         <RadioButton
             android:id="@+id/tabStats"
             android:layout_width="0dp"
-            android:layout_height="48dp"
+            android:layout_height="72dp"
             android:layout_weight="1"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:background="@drawable/bg_detail_tab"
             android:button="@null"
+            android:ellipsize="end"
             android:gravity="center"
-            android:letterSpacing="0.04"
-            android:singleLine="true"
+            android:includeFontPadding="false"
+            android:letterSpacing="0.02"
+            android:maxLines="1"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:padding="0dp"
             android:text="@string/detail_tab_stats"
             android:textColor="@color/detail_tab_text"
-            android:textSize="14sp"
+            android:textSize="30sp"
             android:textStyle="bold" />
 
         <RadioButton
             android:id="@+id/tabTv"
             android:layout_width="0dp"
-            android:layout_height="48dp"
+            android:layout_height="72dp"
             android:layout_weight="1"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:background="@drawable/bg_detail_tab"
             android:button="@null"
+            android:ellipsize="end"
             android:gravity="center"
-            android:letterSpacing="0.04"
-            android:singleLine="true"
+            android:includeFontPadding="false"
+            android:letterSpacing="0.02"
+            android:maxLines="1"
+            android:minHeight="0dp"
+            android:minWidth="0dp"
+            android:padding="0dp"
             android:text="@string/detail_tab_tv"
             android:textColor="@color/detail_tab_text"
-            android:textSize="14sp"
+            android:textSize="30sp"
             android:textStyle="bold" />
     </RadioGroup>
 
@@ -220,31 +360,36 @@
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:layout_marginTop="4dp">
+        android:layout_weight="1">
 
         <ScrollView
             android:id="@+id/summaryScroll"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:fadeScrollbars="false"
             android:fillViewport="true"
-            android:scrollbars="none">
+            android:scrollbarSize="8dp"
+            android:scrollbarStyle="insideInset"
+            android:scrollbarThumbVertical="@drawable/scrollbar_detail"
+            android:scrollbars="vertical">
 
             <LinearLayout
                 android:id="@+id/summaryContent"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:paddingTop="4dp"
-                android:paddingBottom="4dp" />
+                android:orientation="vertical" />
         </ScrollView>
 
         <ScrollView
             android:id="@+id/lineupsScroll"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:fadeScrollbars="false"
             android:fillViewport="true"
-            android:scrollbars="none"
+            android:scrollbarSize="8dp"
+            android:scrollbarStyle="insideInset"
+            android:scrollbarThumbVertical="@drawable/scrollbar_detail"
+            android:scrollbars="vertical"
             android:visibility="gone">
 
             <LinearLayout
@@ -252,16 +397,19 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:paddingTop="4dp"
-                android:paddingBottom="4dp" />
+                android:paddingBottom="8dp" />
         </ScrollView>
 
         <ScrollView
             android:id="@+id/statsScroll"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:fadeScrollbars="false"
             android:fillViewport="true"
-            android:scrollbars="none"
+            android:scrollbarSize="8dp"
+            android:scrollbarStyle="insideInset"
+            android:scrollbarThumbVertical="@drawable/scrollbar_detail"
+            android:scrollbars="vertical"
             android:visibility="gone">
 
             <LinearLayout
@@ -269,16 +417,19 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:paddingTop="4dp"
-                android:paddingBottom="4dp" />
+                android:paddingBottom="8dp" />
         </ScrollView>
 
         <ScrollView
             android:id="@+id/tvScroll"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:fadeScrollbars="false"
             android:fillViewport="true"
-            android:scrollbars="none"
+            android:scrollbarSize="8dp"
+            android:scrollbarStyle="insideInset"
+            android:scrollbarThumbVertical="@drawable/scrollbar_detail"
+            android:scrollbars="vertical"
             android:visibility="gone">
 
             <LinearLayout
@@ -286,8 +437,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:paddingTop="4dp"
-                android:paddingBottom="4dp" />
+                android:paddingBottom="8dp" />
         </ScrollView>
     </FrameLayout>
 
@@ -295,10 +445,12 @@
         android:id="@+id/detailFooter"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
         android:accessibilityLiveRegion="none"
         android:ellipsize="end"
-        android:singleLine="true"
-        android:textColor="#808080"
-        android:textSize="12sp" />
+        android:gravity="center_vertical"
+        android:includeFontPadding="false"
+        android:maxLines="1"
+        android:minHeight="24dp"
+        android:textColor="@color/detail_footer"
+        android:textSize="18sp" />
 </LinearLayout>

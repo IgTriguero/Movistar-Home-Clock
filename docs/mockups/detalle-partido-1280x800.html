@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HomeClock — Mockup detalle de partido</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #000; }
+  body {
+    width: 1280px;
+    height: 800px;
+    overflow: hidden;
+    font-family: "Roboto", "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  .screen {
+    width: 1280px;
+    height: 800px;
+    background: #121212;
+    color: #FFFFFF;
+    padding: 0 16px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ---------- Cabecera ---------- */
+  .topline {
+    height: 64px;
+    flex: 0 0 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .competition {
+    font-size: 24px;
+    font-weight: 500;
+    color: #CFCFCF;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .close {
+    width: 64px;
+    height: 64px;
+    flex: 0 0 64px;
+    border-radius: 50%;
+    background: #1B1B1B;
+    border: 1px solid #2A2A2A;
+    color: #CFCFCF;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 34px;
+    font-weight: 400;
+    line-height: 1;
+  }
+
+  .scoreboard {
+    height: 140px;
+    flex: 0 0 140px;
+    display: grid;
+    grid-template-columns: 1fr 320px 1fr;
+    align-items: center;
+  }
+  .team {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-width: 0;
+  }
+  .team.home { justify-content: flex-start; }
+  .team.away { justify-content: flex-end; }
+  .team-text { min-width: 0; }
+  .team.home .team-text { text-align: left; }
+  .team.away .team-text { text-align: right; }
+
+  .team-name {
+    font-size: 40px;
+    font-weight: 500;
+    line-height: 1.05;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .goal-line {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: 3px;
+    font-size: 36px;
+    line-height: 1.1;
+    color: #CFCFCF;
+    white-space: nowrap;
+  }
+  .team.home .goal-line { justify-content: flex-start; }
+  .team.away .goal-line { justify-content: flex-end; }
+  .goal-count { color: #FFFFFF; font-weight: 700; }
+  .goal-sep { color: #7A7A7A; margin: 0 2px; }
+  .ball-sm { width: 26px; height: 26px; flex: 0 0 26px; color: #FFFFFF; }
+
+  .center { text-align: center; }
+  .score {
+    font-size: 96px;
+    font-weight: 700;
+    line-height: 0.95;
+    letter-spacing: 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .status {
+    margin-top: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 40px;
+    font-weight: 700;
+    line-height: 1.05;
+    color: #CFCFCF;
+    white-space: nowrap;
+  }
+  .status .live { color: #FFD166; }
+  .live-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #FFD166;
+    display: inline-block;
+  }
+
+  /* ---------- Crestas / banderas ---------- */
+  .crest {
+    width: 80px;
+    height: 80px;
+    flex: 0 0 80px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.18);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+  }
+  .crest.spain {
+    background: linear-gradient(to bottom, #AA151B 0 25%, #F1BF00 25% 75%, #AA151B 75% 100%);
+  }
+  .crest.england {
+    background-color: #FFFFFF;
+    background-image:
+      linear-gradient(to right, transparent 40%, #CE1124 40%, #CE1124 60%, transparent 60%),
+      linear-gradient(to bottom, transparent 40%, #CE1124 40%, #CE1124 60%, transparent 60%);
+  }
+  .mini-crest {
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    overflow: hidden;
+  }
+  .mini-crest.spain {
+    background: linear-gradient(to bottom, #AA151B 0 25%, #F1BF00 25% 75%, #AA151B 75% 100%);
+  }
+  .mini-crest.england {
+    background-color: #FFFFFF;
+    background-image:
+      linear-gradient(to right, transparent 40%, #CE1124 40%, #CE1124 60%, transparent 60%),
+      linear-gradient(to bottom, transparent 40%, #CE1124 40%, #CE1124 60%, transparent 60%);
+  }
+
+  /* ---------- Pestañas ---------- */
+  .tabs {
+    height: 72px;
+    flex: 0 0 72px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-bottom: 2px solid #242424;
+  }
+  .tab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30px;
+    font-weight: 700;
+    color: #CFCFCF;
+    letter-spacing: 0.02em;
+    position: relative;
+  }
+  .tab.active {
+    color: #E0A85A;
+    background: #2A2118;
+  }
+  .tab.active::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -2px;
+    height: 6px;
+    background: #E0A85A;
+  }
+
+  /* ---------- Contenido ---------- */
+  .content {
+    flex: 1 1 auto;
+    position: relative;
+    overflow: hidden;
+    min-height: 0;
+  }
+  .timeline-head {
+    height: 36px;
+    display: grid;
+    grid-template-columns: 28px 1fr 28px;
+    align-items: center;
+    gap: 12px;
+  }
+  .timeline-title {
+    text-align: center;
+    font-size: 28px;
+    font-weight: 700;
+    color: #E0A85A;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .timeline-viewport {
+    position: relative;
+    height: 464px;
+    overflow: hidden;
+  }
+  .timeline {
+    position: relative;
+    height: 463px;
+  }
+  .timeline::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    transform: translateX(-50%);
+    background: #2A2A2A;
+  }
+
+  .event-row {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 112px 1fr;
+    align-items: center;
+    padding: 8px 0;
+  }
+  .event-side {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+  .event-side.left {
+    justify-content: flex-end;
+    text-align: right;
+  }
+  .event-side.right {
+    justify-content: flex-start;
+    text-align: left;
+  }
+  .event-side .icon {
+    width: 48px;
+    height: 48px;
+    flex: 0 0 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 0;
+  }
+  .event-text { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+  .event-name {
+    flex: 0 0 auto;
+    max-width: 100%;
+    font-size: 48px;
+    font-weight: 500;
+    line-height: 1.02;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .event-name.goal { font-weight: 700; }
+  .event-name.sub { font-size: 36px; font-weight: 500; }
+  .event-sub {
+    flex: 0 1 auto;
+    min-width: 0;
+    font-size: 28px;
+    line-height: 1.1;
+    color: #CFCFCF;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .event-tag {
+    flex: 0 0 auto;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.1;
+    color: #E0A85A;
+    white-space: nowrap;
+  }
+  .minute {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding-top: 0;
+  }
+  .minute span {
+    position: relative;
+    z-index: 1;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: #121212;
+    color: #E0A85A;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .halftime {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 2px 0;
+  }
+  .halftime::before,
+  .halftime::after {
+    content: "";
+    flex: 1;
+    height: 2px;
+    background: #2A2A2A;
+  }
+  .halftime span {
+    position: relative;
+    z-index: 1;
+    padding: 0 12px;
+    background: #121212;
+    color: #E0A85A;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .neutral-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 4px 0;
+    background: #121212;
+    font-size: 32px;
+    color: #CFCFCF;
+  }
+  .neutral-row .neutral-minute {
+    margin-left: 8px;
+    font-size: 32px;
+    font-weight: 700;
+    color: #E0A85A;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------- Iconos ---------- */
+  .ball { width: 48px; height: 48px; color: #FFFFFF; }
+  .card {
+    width: 40px;
+    height: 48px;
+    border-radius: 5px;
+  }
+  .card.yellow { background: #FFC400; }
+  .card.red { background: #E53935; border: 2px solid #FFFFFF; }
+  .double-card {
+    position: relative;
+    width: 48px;
+    height: 48px;
+  }
+  .double-card .card {
+    position: absolute;
+    width: 34px;
+    height: 44px;
+  }
+  .double-card .yellow { left: 0; top: 0; }
+  .double-card .red { left: 11px; top: 4px; z-index: 1; }
+  .sub-icon { width: 48px; height: 48px; }
+  .var-icon {
+    width: 48px;
+    height: 40px;
+    flex: 0 0 48px;
+    border: 3px solid #CFCFCF;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #CFCFCF;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+
+  /* ---------- Scroll y pie ---------- */
+  .footer {
+    height: 24px;
+    flex: 0 0 24px;
+    display: flex;
+    align-items: center;
+    font-size: 18px;
+    color: #A0A0A0;
+  }
+</style>
+</head>
+<body>
+<div class="screen">
+
+  <!-- Cabecera fija -->
+  <header class="header">
+    <div class="topline">
+      <div class="competition">Amistoso internacional</div>
+      <div class="close" aria-label="Cerrar">✕</div>
+    </div>
+
+    <div class="scoreboard">
+      <div class="team home">
+        <div class="crest spain" aria-hidden="true"></div>
+        <div class="team-text">
+          <div class="team-name">España</div>
+          <div class="goal-line">
+            <svg class="ball-sm" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <circle cx="24" cy="24" r="19" stroke="currentColor" stroke-width="3"/>
+              <path d="M24 13l7.6 5.5-2.9 8.9h-9.4l-2.9-8.9L24 13z" fill="currentColor"/>
+              <path d="M24 13V5.5M31.6 18.5l7.2-2.4M28.7 27.4l4.5 6.2M19.3 27.4l-4.5 6.2M16.4 18.5l-7.2-2.4" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+            <span><span class="goal-count">1</span><span class="goal-sep">·</span>Porro</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="center">
+        <div class="score">1 - 2</div>
+        <div class="status">
+          <span class="live-dot"></span>
+          <span class="live">EN VIVO</span>
+          <span>· 83:12</span>
+        </div>
+      </div>
+
+      <div class="team away">
+        <div class="team-text">
+          <div class="team-name">Inglaterra</div>
+          <div class="goal-line">
+            <span><span class="goal-count">2</span><span class="goal-sep">·</span>Kane, Bellingham</span>
+            <svg class="ball-sm" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <circle cx="24" cy="24" r="19" stroke="currentColor" stroke-width="3"/>
+              <path d="M24 13l7.6 5.5-2.9 8.9h-9.4l-2.9-8.9L24 13z" fill="currentColor"/>
+              <path d="M24 13V5.5M31.6 18.5l7.2-2.4M28.7 27.4l4.5 6.2M19.3 27.4l-4.5 6.2M16.4 18.5l-7.2-2.4" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
+        <div class="crest england" aria-hidden="true"></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Pestañas -->
+  <nav class="tabs">
+    <div class="tab active">RESUMEN</div>
+    <div class="tab">ALINEACIONES</div>
+    <div class="tab">ESTADÍSTICAS</div>
+    <div class="tab">DÓNDE VER</div>
+  </nav>
+
+  <!-- Resumen / cronología -->
+  <main class="content">
+    <div class="timeline-head">
+      <div class="mini-crest spain" aria-hidden="true"></div>
+      <div class="timeline-title">Cronología</div>
+      <div class="mini-crest england" aria-hidden="true"></div>
+    </div>
+
+    <div class="timeline-viewport">
+    <div class="timeline">
+
+      <!-- 15' Amarilla visitante -->
+      <div class="event-row">
+        <div class="event-side left"></div>
+        <div class="minute"><span>15'</span></div>
+        <div class="event-side right">
+          <div class="icon"><div class="card yellow"></div></div>
+          <div class="event-text">
+            <div class="event-name">Declan Rice</div>
+            <div class="event-tag">Amarilla</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 21' Gol local -->
+      <div class="event-row">
+        <div class="event-side left">
+          <div class="event-text">
+            <div class="event-name goal">Pedro Porro</div>
+            <div class="event-sub">· Morata</div>
+          </div>
+          <div class="icon">
+            <svg class="ball" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <circle cx="24" cy="24" r="19" stroke="currentColor" stroke-width="3"/>
+              <path d="M24 13l7.6 5.5-2.9 8.9h-9.4l-2.9-8.9L24 13z" fill="currentColor"/>
+              <path d="M24 13V5.5M31.6 18.5l7.2-2.4M28.7 27.4l4.5 6.2M19.3 27.4l-4.5 6.2M16.4 18.5l-7.2-2.4" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
+        <div class="minute"><span>21'</span></div>
+        <div class="event-side right"></div>
+      </div>
+
+      <!-- Descanso -->
+      <div class="halftime"><span>Descanso</span></div>
+
+      <!-- 45+2' Gol visitante -->
+      <div class="event-row">
+        <div class="event-side left"></div>
+        <div class="minute"><span>45+2'</span></div>
+        <div class="event-side right">
+          <div class="icon">
+            <svg class="ball" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <circle cx="24" cy="24" r="19" stroke="currentColor" stroke-width="3"/>
+              <path d="M24 13l7.6 5.5-2.9 8.9h-9.4l-2.9-8.9L24 13z" fill="currentColor"/>
+              <path d="M24 13V5.5M31.6 18.5l7.2-2.4M28.7 27.4l4.5 6.2M19.3 27.4l-4.5 6.2M16.4 18.5l-7.2-2.4" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="event-text">
+            <div class="event-name goal">Harry Kane</div>
+            <div class="event-sub">· Bellingham</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 60' Cambio local -->
+      <div class="event-row">
+        <div class="event-side left">
+          <div class="event-text">
+            <div class="event-name sub">Morata ↑ / Pedri ↓</div>
+          </div>
+          <div class="icon">
+            <svg class="sub-icon" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M16 34V14m0 0l-6 6m6-6l6 6" stroke="#43A047" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M32 14v20m0 0l-6-6m6 6l6-6" stroke="#E53935" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+        </div>
+        <div class="minute"><span>60'</span></div>
+        <div class="event-side right"></div>
+      </div>
+
+      <!-- 70' Gol visitante -->
+      <div class="event-row">
+        <div class="event-side left"></div>
+        <div class="minute"><span>70'</span></div>
+        <div class="event-side right">
+          <div class="icon">
+            <svg class="ball" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <circle cx="24" cy="24" r="19" stroke="currentColor" stroke-width="3"/>
+              <path d="M24 13l7.6 5.5-2.9 8.9h-9.4l-2.9-8.9L24 13z" fill="currentColor"/>
+              <path d="M24 13V5.5M31.6 18.5l7.2-2.4M28.7 27.4l4.5 6.2M19.3 27.4l-4.5 6.2M16.4 18.5l-7.2-2.4" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="event-text">
+            <div class="event-name goal">Bellingham</div>
+            <div class="event-sub">· Kane</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 76' Segunda amarilla visitante -->
+      <div class="event-row">
+        <div class="event-side left"></div>
+        <div class="minute"><span>76'</span></div>
+        <div class="event-side right">
+          <div class="icon">
+            <div class="double-card">
+              <div class="card yellow"></div>
+              <div class="card red"></div>
+            </div>
+          </div>
+          <div class="event-text">
+            <div class="event-name">Declan Rice</div>
+            <div class="event-tag">2ª amarilla</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 82' VAR neutral -->
+      <div class="neutral-row">
+        <div class="var-icon">VAR</div>
+        <span>Revisión de gol</span>
+        <span class="neutral-minute">82'</span>
+      </div>
+
+    </div>
+    </div>
+
+  </main>
+
+  <footer class="footer">Fuente: 365Scores · Actualizado 21:28</footer>
+</div>
+</body>
+</html>

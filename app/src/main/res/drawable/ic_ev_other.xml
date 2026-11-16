@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Incidencia genérica: círculo con una "i". -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="40dp"
+    android:height="40dp"
+    android:viewportWidth="40"
+    android:viewportHeight="40">
+
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M20,3 A17,17 0 0,1 20,37 A17,17 0 0,1 20,3 Z"
+        android:strokeColor="@color/detail_text_secondary"
+        android:strokeWidth="2.5" />
+
+    <path
+        android:fillColor="@color/detail_text_secondary"
+        android:pathData="M20,11 A2.5,2.5 0 0,1 20,16 A2.5,2.5 0 0,1 20,11 Z" />
+
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M20,19 V29"
+        android:strokeColor="@color/detail_text_secondary"
+        android:strokeLineCap="round"
+        android:strokeWidth="3" />
+</vector>
