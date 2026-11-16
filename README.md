@@ -17,7 +17,7 @@ App Android ligera para un **Movistar Home RG3205W** en horizontal. Muestra un r
 - **Equipos en pausa** sin borrarlos y lista vacía válida: si no sigues a nadie, el panel se oculta y no se consultan fuentes.
 - **Vuelta automática al reloj**: Ajustes se cierra solo tras 60 s sin interacción y un panel oculto vuelve a aparecer si hay partido. La navegación por días también regresa a hoy sin mostrar cuenta atrás.
 - **Ajustes por secciones** con menú lateral y autoguardado: General, Deportes, Tiempo, Información y Reportar. **Reportar** permite compartir o copiar un informe con el diagnóstico sin datos sensibles.
-- **Detalle de partido** al tocar una fila: goles, tarjetas, cambios, alineaciones, estadísticas, estadio, árbitro y dónde ver. RFEF y Celta muestran el resumen básico y un enlace a su fuente.
+- **Detalle de partido** al tocar una fila: cabecera grande, goleadores, cronología a dos lados con iconos y **6 eventos + descanso** visibles. Incluye alineaciones, estadísticas, estadio, árbitro y dónde ver; RFEF y Celta muestran el resumen básico y un enlace a su fuente.
 - **Dónde verlo en España**: emisoras de 365Scores cuando están disponibles, guía por competición 2026/27 y búsqueda directa, con aviso de que los derechos cambian.
 - **Minuto real de la API**, sin reloj local inventado: `34'`, `90+4'`, `4C 00:03`.
 - **Refresco adaptativo**: 15 s en baloncesto, 5 s en los últimos 2 min de cuarto, 60 s en fútbol y 6 h sin partidos.
@@ -44,7 +44,7 @@ App Android ligera para un **Movistar Home RG3205W** en horizontal. Muestra un r
 Descarga el APK de la última release:
 
 ```bash
-adb install -r homeclock-1.1.1.apk
+adb install -r homeclock-1.3.apk
 ```
 
 La primera vez que la app se actualice a sí misma, Android pedirá permitir “Instalar apps desconocidas” para HomeClock. Es un ajuste único.

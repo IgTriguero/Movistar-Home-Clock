@@ -1,6 +1,6 @@
 # HomeClock — Diseño técnico
 
-Documento de arquitectura y decisiones de la versión **1.2** (14/11/2026). Para instalar, compilar y ver las capturas, consulta el [README](README.md).
+Documento de arquitectura y decisiones de la versión **1.3** (16/11/2026). Para instalar, compilar y ver las capturas, consulta el [README](README.md).
 
 ## 1. Objetivo y alcance
 
@@ -49,7 +49,7 @@ SettingsActivity
 | Componente | Responsabilidad |
 |---|---|
 | `MainActivity` | Pantalla principal, ciclo de refresco, render del panel y avisos. |
-| `SettingsActivity` | Ajustes, listas de ciudades y equipos, y diagnóstico. |
+| `SettingsActivity` | Ajustes por secciones, listas de ciudades y equipos, diagnóstico y reporte. |
 | `City` / `CityList` / `CityListCodec` | Modelo, orden, selección y JSON de ciudades (`cities_v2`). |
 | `TrackedTeam` | Equipo seguido inmutable: proveedor, ID, deporte, nombres, país, competición, logo y estado. |
 | `TrackedTeamList` / `TrackedTeamCodec` | Lista ordenada (máximo 10, lista vacía válida), firma de selección y JSON `teams_v1`. |
@@ -59,6 +59,7 @@ SettingsActivity
 | `WeatherRepository` | Fetch multi-ciudad, merge de caché v2 y fallback offline. |
 | `WeatherPager` / `PageDotsView` | Paginador táctil del tiempo y puntos de posición. |
 | `MatchDetail*` / `MatchDetailDialog` | Detalle de 365Scores, caché de finalizados y modal por pestañas. |
+| `MatchSummary` / `MatchTimeline` | Goleadores, propia/penalti/anulado y colocación del descanso. |
 | `BroadcastCatalog` | Guía curada de TV por competición y búsqueda de respaldo. |
 | `MatchRepository` | Ejecuta las fuentes en paralelo, fusiona, deduplica y aplica caché. |
 | `Scores365Source` | Fútbol y baloncesto vía 365Scores. |
@@ -159,6 +160,12 @@ pestañas (Resumen, Alineaciones, Estadísticas y Dónde ver) y scroll por pesta
 fuente. Los partidos finalizados se cachean en `filesDir/match_details`; los
 vivos se refrescan cada 20 s (fútbol) o 15 s (baloncesto).
 
+La versión 1.3 rediseña el modal para leerlo a distancia: marcador 96sp,
+equipos/estado 40sp, pestañas 30sp y cronología a dos lados con nombres 48sp,
+detalle inline 28sp e iconos vectoriales. Se ven 6 eventos + descanso sin scroll;
+el VAR queda a un gesto mínimo. La ficha de estadio/árbitro va al final y las
+filas son nodos accesibles completos para TalkBack.
+
 ### Fila de partido
 
 Una sola fila, sin estilos alternativos:
@@ -199,7 +206,7 @@ Cada 5 minutos se aplica un desplazamiento de hasta ±4 dp siguiendo un anillo d
 
 ## 9. Calidad
 
-- **587 tests** unitarios: modelo, mapper, tiempo, temporada, kickoff, refresco, caché, repositorio, `SourceResult`, diagnóstico, salud de fuentes, codec/estado persistido, PSS/salidas, pixel shift, caché de escudos, ciudades, caché v2, pager, detección IP, detalle de partido, guía de TV, equipos seguidos, búsqueda de equipos y contrato.
+- **611 tests** unitarios: modelo, mapper, tiempo, temporada, kickoff, refresco, caché, repositorio, `SourceResult`, diagnóstico, salud de fuentes, codec/estado persistido, PSS/salidas, pixel shift, caché de escudos, ciudades, caché v2, pager, detección IP, detalle de partido, goles/descanso del detalle, guía de TV, equipos seguidos, búsqueda de equipos y contrato.
 - **Contrato diario** con datos reales de 365Scores, Open-Meteo, RFEF y Celta.
 - **Soak test**: `tools/soak.sh` muestrea PID, PSS, actividad en primer plano y crashes/ANRs durante 72 h.
 - **Lint**: 0 errores; quedan avisos menores de rendimiento/estilo.
