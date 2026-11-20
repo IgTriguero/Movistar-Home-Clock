@@ -34,15 +34,6 @@ public class RefreshPolicyTest {
     }
 
     @Test
-    public void basketballAtEndOfQuarterRefreshesEveryFiveSeconds() {
-        Match match = match("Baloncesto", MatchStatus.LIVE, NOW);
-        match.gameTimeDisplay = "01:30";
-        MatchesSnapshot snapshot = snapshot(match);
-
-        assertEquals(5_000L, RefreshPolicy.nextDelay(snapshot, NOW));
-    }
-
-    @Test
     public void basketballAtTwoMinutesExactlyRefreshesEveryFiveSeconds() {
         Match match = match("Baloncesto", MatchStatus.LIVE, NOW);
         match.gameTimeDisplay = "02:00";

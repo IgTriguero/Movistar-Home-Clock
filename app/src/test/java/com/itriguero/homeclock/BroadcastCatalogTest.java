@@ -2,10 +2,7 @@ package com.itriguero.homeclock;
 
 import org.junit.Test;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.Locale;
 
 import static org.junit.Assert.assertEquals;
@@ -14,8 +11,6 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 public class BroadcastCatalogTest {
-
-    private static final Locale ES = new Locale("es", "ES");
 
     @Test
     public void euroligaAndEuroleagueMapToEuroliga() {
@@ -184,15 +179,11 @@ public class BroadcastCatalogTest {
                 .parse("2026-11-14 18:30")
                 .getTime();
 
-        String date = new SimpleDateFormat("d MMM yyyy", ES)
-                .format(new Date(match.startMillis));
-        String query = "dónde ver Celta Barcelona " + date + " TV España";
-
         BroadcastInfo info = BroadcastCatalog.forMatch(match);
 
-        assertTrue(info.searchUrl.startsWith("https://www.google.com/search?q="));
-        assertTrue(info.searchUrl.endsWith(
-                URLEncoder.encode(query, StandardCharsets.UTF_8.name())));
+        assertEquals("https://www.google.com/search?q="
+                        + "d%C3%B3nde+ver+Celta+Barcelona+14+nov+2026+TV+Espa%C3%B1a",
+                info.searchUrl);
     }
 
     @Test
@@ -204,10 +195,9 @@ public class BroadcastCatalogTest {
 
         BroadcastInfo info = BroadcastCatalog.forMatch(match);
 
-        assertTrue(info.searchUrl.endsWith(URLEncoder.encode(
-                "dónde ver Celta Barcelona TV España",
-                StandardCharsets.UTF_8.name())));
-        assertFalse(info.searchUrl.contains("null"));
+        assertEquals("https://www.google.com/search?q="
+                        + "d%C3%B3nde+ver+Celta+Barcelona+TV+Espa%C3%B1a",
+                info.searchUrl);
     }
 
     @Test

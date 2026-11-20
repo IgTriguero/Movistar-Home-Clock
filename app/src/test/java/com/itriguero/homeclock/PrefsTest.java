@@ -88,38 +88,6 @@ public class PrefsTest {
     }
 
     @Test
-    public void saveLocationAddsAndSelectsInExistingList() {
-        FakePrefs store = new FakePrefs();
-        Prefs prefs = new Prefs(store);
-        prefs.saveCities(new CityList(
-                List.of(city("Tres Cantos", 40.6009, -3.7086)),
-                City.keyOf(40.6009, -3.7086)));
-
-        prefs.saveLocation("Vigo", 42.23282, -8.72264);
-
-        CityList list = prefs.loadCities();
-        assertEquals(2, list.size());
-        assertEquals("Vigo", list.selected().name);
-        assertEquals("Tres Cantos", store.values.get("city"));
-    }
-
-    @Test
-    public void saveLocationReplacesTheOnlyCityInLegacyMode() {
-        FakePrefs store = new FakePrefs();
-        store.values.put("city", "Tres Cantos");
-        store.values.put("lat", String.valueOf(Prefs.DEFAULT_LAT));
-        store.values.put("lon", String.valueOf(Prefs.DEFAULT_LON));
-        Prefs prefs = new Prefs(store);
-
-        prefs.saveLocation("Vigo", 42.23282, -8.72264);
-
-        CityList list = prefs.loadCities();
-        assertEquals(1, list.size());
-        assertEquals("Vigo", list.selected().name);
-        assertEquals("Vigo", store.values.get("city"));
-    }
-
-    @Test
     public void loadWeatherCacheMigratesLegacyAndRemovesIt() {
         FakePrefs store = new FakePrefs();
         store.values.put("city", "Vigo");

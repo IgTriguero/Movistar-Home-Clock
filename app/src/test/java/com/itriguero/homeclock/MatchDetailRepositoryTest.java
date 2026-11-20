@@ -114,7 +114,6 @@ public class MatchDetailRepositoryTest {
         repository.load(match, true, result -> done.countDown());
         await(done);
 
-        assertEquals(1, cache.size());
         MatchDetail cached = cache.load(match);
         assertNotNull(cached);
         assertEquals(999L, cached.fetchedAt);
@@ -133,7 +132,7 @@ public class MatchDetailRepositoryTest {
         repository.load(match, false, result -> done.countDown());
         await(done);
 
-        assertEquals(0, cache.size());
+        assertNull(cache.load(match));
     }
 
     @Test
@@ -151,7 +150,7 @@ public class MatchDetailRepositoryTest {
         });
         await(done);
 
-        assertEquals(0, cache.size());
+        assertNull(cache.load(match));
         assertEquals(SourceState.TIMEOUT, received.get().state);
         assertNull(received.get().data);
     }
@@ -174,7 +173,7 @@ public class MatchDetailRepositoryTest {
         assertEquals(SourceState.OK, received.get().state);
         assertFalse(received.get().data.hasStats);
         assertEquals("Sin estadísticas", received.get().data.statsError);
-        assertEquals(1, cache.size());
+        assertNotNull(cache.load(match));
     }
 
     @Test

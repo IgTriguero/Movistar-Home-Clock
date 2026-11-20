@@ -81,14 +81,6 @@ public final class Diagnostics {
         }
     }
 
-    /**
-     * Compatibilidad: registra el intento como si hubiera empezado ahora.
-     */
-    public void recordMatches(MatchesSnapshot snapshot, long durationMs) {
-        long now = System.currentTimeMillis();
-        recordMatches(snapshot, now, durationMs, now);
-    }
-
     public void recordMatches(MatchesSnapshot snapshot, long attemptStartedAt,
                               long durationMs) {
         recordMatches(snapshot, attemptStartedAt, durationMs,
@@ -118,23 +110,6 @@ public final class Diagnostics {
                     : new LinkedHashMap<>(snapshot.sources);
             fetchedAt = snapshot.fetchedAt;
             updateSourceHealth(snapshot.sources, at);
-            revision++;
-            copy = new Snapshot(this);
-            target = listener;
-        }
-        deliver(target, copy);
-    }
-
-    /**
-     * Versión antigua: solo mueve la marca del tiempo de los datos. No toca la
-     * salud porque no hay intento que contar (por ejemplo, al restaurar una
-     * caché al arrancar).
-     */
-    public void recordWeather(long fetchedAt) {
-        Snapshot copy;
-        Listener target;
-        synchronized (this) {
-            weatherAt = fetchedAt;
             revision++;
             copy = new Snapshot(this);
             target = listener;

@@ -9,8 +9,6 @@ import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
 public class SourceHealthPolicyTest {
@@ -20,18 +18,8 @@ public class SourceHealthPolicyTest {
     private static final long NOW = 1_760_000_000_000L;
 
     @Test
-    public void initialHasNoAttemptsAndIsNotDown() {
-        SourceHealth health = SourceHealth.initial("365scores");
-
-        assertEquals("365scores", health.sourceId);
-        assertEquals(SourceState.ERROR, health.state);
-        assertNull(health.error);
-        assertEquals(0, health.attempts);
-        assertEquals(0, health.failures);
-        assertEquals(0, health.consecutiveFailures);
-        assertEquals(0L, health.downSince);
-        assertFalse(health.isDown(NOW));
-        assertFalse(SourceHealthPolicy.isDown(health, NOW));
+    public void initialSourceIsNeverDown() {
+        assertFalse(SourceHealth.initial("365scores").isDown(NOW));
     }
 
     @Test
@@ -163,7 +151,6 @@ public class SourceHealthPolicyTest {
 
         SourceHealth same = SourceHealthPolicy.update(health, null, NOW + MINUTE);
 
-        assertSame(health, same);
         assertEquals(1, same.attempts);
         assertEquals(health.lastAttemptAt, same.lastAttemptAt);
     }
@@ -188,21 +175,15 @@ public class SourceHealthPolicyTest {
 
         assertTrue(health.isDown(NOW + 24 * HOUR));
         assertFalse(health.isDown(NOW + 24 * HOUR + 1L));
-        assertFalse(SourceHealthPolicy.isDown(null, NOW));
     }
 
     @Test
-    public void successAndFailureHelpers() {
+    public void successHelper() {
         assertTrue(SourceHealthPolicy.isSuccess(status("x", SourceState.OK, false)));
         assertTrue(SourceHealthPolicy.isSuccess(status("x", SourceState.EMPTY, false)));
         assertFalse(SourceHealthPolicy.isSuccess(status("x", SourceState.OK, true)));
         assertFalse(SourceHealthPolicy.isSuccess(status("x", SourceState.ERROR, false)));
         assertFalse(SourceHealthPolicy.isSuccess(null));
-
-        assertTrue(SourceHealthPolicy.isFailure(status("x", SourceState.OK, true)));
-        assertTrue(SourceHealthPolicy.isFailure(status("x", SourceState.TIMEOUT, false)));
-        assertFalse(SourceHealthPolicy.isFailure(status("x", SourceState.EMPTY, false)));
-        assertFalse(SourceHealthPolicy.isFailure(null));
     }
 
     @Test

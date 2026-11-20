@@ -125,48 +125,6 @@ final class Prefs {
     }
 
     /**
-     * Compatibilidad con el flujo antiguo de una sola ciudad. Si todavía no
-     * existe {@code cities_v2}, sustituye la única ciudad; si ya existe la
-     * lista, añade o selecciona la ciudad sin dejar dos escritores.
-     */
-    void saveLocation(String city, double lat, double lon) {
-        City candidate = new City(city, "", "", lat, lon, City.Source.MANUAL);
-        if (candidate.isValid()) {
-            boolean legacyMode = string(KEY_CITIES, "").isEmpty();
-            CityList list = loadCities();
-            if (legacyMode) {
-                // Migración desde una instalación antigua: una sola ciudad.
-                CityList replaced = new CityList(
-                        java.util.Collections.singletonList(candidate),
-                        candidate.key(), false);
-                saveCities(replaced);
-                saveWeatherCache(null);
-                return;
-            }
-
-            if (list.indexOf(candidate.key()) >= 0) {
-                list.select(candidate.key());
-            } else {
-                CityList.AddResult result = list.add(candidate);
-                if (result == CityList.AddResult.FULL) return;
-                if (result == CityList.AddResult.INVALID) return;
-                list.select(candidate.key());
-            }
-            saveCities(list);
-            return;
-        }
-
-        String safeCity = city == null || city.trim().isEmpty()
-                ? DEFAULT_CITY : city.trim();
-        prefs.edit()
-                .putString(KEY_CITY, safeCity)
-                .putString(KEY_LAT, String.valueOf(lat))
-                .putString(KEY_LON, String.valueOf(lon))
-                .remove(KEY_WEATHER_CACHE)
-                .apply();
-    }
-
-    /**
      * Lee la lista de ciudades. Si migra desde el formato antiguo o repara el
      * JSON, guarda el resultado y el espejo city/lat/lon de la primera ciudad
      * en un único editor. Si el JSON viene de una versión futura no se toca.

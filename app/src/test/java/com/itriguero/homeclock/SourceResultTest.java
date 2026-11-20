@@ -11,6 +11,7 @@ import java.util.Arrays;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -49,12 +50,11 @@ public class SourceResultTest {
     }
 
     @Test
-    public void okResultHasDataAndIsOk() {
+    public void okResultIsOk() {
         SourceResult<?> result = SourceResult.ok(Arrays.asList("a", "b"), 10L, 20L);
 
         assertEquals(SourceState.OK, result.state);
         assertTrue(result.isOk());
-        assertTrue(result.hasData());
         assertEquals(10L, result.fetchedAt);
         assertEquals(20L, result.durationMs);
         assertNull(result.error);
@@ -67,19 +67,19 @@ public class SourceResultTest {
 
         assertEquals(SourceState.EMPTY, result.state);
         assertTrue(result.isOk());
-        assertFalse(result.hasData());
+        assertNull(result.data);
         assertFalse(result.fromCache);
     }
 
     @Test
-    public void cacheFactoriesMarkFromCache() {
-        SourceResult<?> ok = SourceResult.okFromCache(Arrays.asList("a"), 10L, 20L);
-        SourceResult<?> empty = SourceResult.emptyFromCache(30L, 40L);
+    public void cacheResultsMarkFromCache() {
+        SourceResult<?> ok = SourceResult.ok(Arrays.asList("a"), 10L, 20L, true);
+        SourceResult<?> empty = SourceResult.empty(30L, 40L, true);
 
         assertTrue(ok.fromCache);
-        assertTrue(ok.hasData());
+        assertNotNull(ok.data);
         assertTrue(empty.fromCache);
-        assertFalse(empty.hasData());
+        assertNull(empty.data);
     }
 
     @Test
@@ -88,7 +88,7 @@ public class SourceResultTest {
 
         assertEquals(SourceState.OFFLINE, result.state);
         assertFalse(result.isOk());
-        assertFalse(result.hasData());
+        assertNull(result.data);
         assertEquals("sin red", result.error);
     }
 

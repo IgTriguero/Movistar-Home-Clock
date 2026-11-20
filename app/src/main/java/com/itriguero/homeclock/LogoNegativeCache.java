@@ -31,10 +31,6 @@ public final class LogoNegativeCache {
         this.ttlMs = ttlMs;
     }
 
-    public long ttlMs() {
-        return ttlMs;
-    }
-
     /**
      * Registra un fallo en {@code now}. Aprovecha para limpiar las entradas
      * caducadas, así la caché no crece con URLs que ya no están en fallo.
@@ -63,26 +59,14 @@ public final class LogoNegativeCache {
         failedAt.clear();
     }
 
-    /**
-     * Elimina las entradas caducadas y devuelve cuántas ha quitado.
-     *
-     * @return número de entradas eliminadas
-     */
-    public int pruneExpired(long now) {
-        int removed = 0;
+    /** Elimina las entradas caducadas. */
+    private void pruneExpired(long now) {
         for (Map.Entry<String, Long> entry : failedAt.entrySet()) {
             Long at = entry.getValue();
-            if (at != null && isExpired(at, now)
-                    && failedAt.remove(entry.getKey(), at)) {
-                removed++;
+            if (at != null && isExpired(at, now)) {
+                failedAt.remove(entry.getKey(), at);
             }
         }
-        return removed;
-    }
-
-    /** Número de entradas actuales, incluidas las caducadas aún no limpiadas. */
-    public int size() {
-        return failedAt.size();
     }
 
     private boolean isExpired(long at, long now) {

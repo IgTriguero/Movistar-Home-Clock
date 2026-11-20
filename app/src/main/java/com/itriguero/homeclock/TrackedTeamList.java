@@ -51,15 +51,6 @@ final class TrackedTeamList {
         return Collections.unmodifiableList(new ArrayList<>(teams));
     }
 
-    /** Solo los equipos activos, conservando el orden configurado. */
-    List<TrackedTeam> active() {
-        List<TrackedTeam> result = new ArrayList<>();
-        for (TrackedTeam team : teams) {
-            if (team.enabled) result.add(team);
-        }
-        return Collections.unmodifiableList(result);
-    }
-
     int size() {
         return teams.size();
     }
@@ -137,20 +128,6 @@ final class TrackedTeamList {
         TrackedTeam team = teams.get(index);
         if (team.enabled != enabled) teams.set(index, team.withEnabled(enabled));
         return true;
-    }
-
-    /**
-     * Firma de toda la lista, incluido el estado de cada equipo. Cambia al
-     * añadir, borrar, reordenar o activar/desactivar.
-     */
-    String signature() {
-        StringBuilder result = new StringBuilder();
-        for (int i = 0; i < teams.size(); i++) {
-            if (i > 0) result.append('|');
-            TrackedTeam team = teams.get(i);
-            result.append(team.key()).append('=').append(team.enabled);
-        }
-        return result.toString();
     }
 
     /**

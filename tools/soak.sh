@@ -28,6 +28,8 @@ Opciones:
   --hours <n>            Duración en horas. Por defecto: 72.
                          Admite decimales para un smoke: --hours 0.02.
   --interval <segundos>  Segundos entre muestras. Por defecto: 60.
+  --expect-version <n>   Aborta si la versión instalada no es <n>. Acepta el
+                         versionName (1.3) o el versionCode (5).
   --out <csv>            CSV de salida. Por defecto: soak-YYYYmmdd-HHMMSS.csv.
   -h, --help             Muestra esta ayuda.
 
@@ -48,6 +50,8 @@ die() {
 serial="${ANDROID_SERIAL:-}"
 hours="72"
 interval="60"
+expect_version=""
+expect_version_set=0
 out=""
 
 while [ "$#" -gt 0 ]; do
@@ -79,6 +83,17 @@ while [ "$#" -gt 0 ]; do
             interval="${1#*=}"
             shift
             ;;
+        --expect-version)
+            if [ "$#" -lt 2 ]; then die "--expect-version requiere un valor"; fi
+            expect_version="$2"
+            expect_version_set=1
+            shift 2
+            ;;
+        --expect-version=*)
+            expect_version="${1#*=}"
+            expect_version_set=1
+            shift
+            ;;
         --out)
             if [ "$#" -lt 2 ]; then die "--out requiere un valor"; fi
             out="$2"
@@ -99,6 +114,10 @@ while [ "$#" -gt 0 ]; do
 done
 
 command -v "$ADB" >/dev/null 2>&1 || die "no se encuentra '$ADB' en PATH"
+
+if [ "$expect_version_set" -eq 1 ] && [ -z "$expect_version" ]; then
+    die "--expect-version requiere un valor no vacío"
+fi
 
 if ! awk -v h="$hours" 'BEGIN { exit !(h ~ /^[0-9]+([.][0-9]+)?$/ && h > 0) }'; then
     die "--hours debe ser un número mayor que 0 (ej. 72 o 0.02)"
@@ -156,6 +175,39 @@ adb_s() {
     "$ADB" -s "$serial" "$@"
 }
 
+# ---------------------------------------------------------------------------
+# Versión instalada
+# ---------------------------------------------------------------------------
+version_name=""
+version_code=""
+version_install=""
+
+# Lee versionName/versionCode/lastUpdateTime del paquete. No falla si el
+# dispositivo no los expone: deja los campos vacíos.
+read_app_version() {
+    version_name=""
+    version_code=""
+    version_install=""
+    local raw
+    raw=$(adb_s shell dumpsys package "$PKG" 2>/dev/null || true)
+    raw=$(printf '%s' "$raw" | tr -d '\r')
+    if [ -z "$raw" ]; then
+        return 0
+    fi
+    version_code=$(printf '%s\n' "$raw" \
+        | awk -F= '/^[[:space:]]*versionCode=/ { print $2; exit }' \
+        | awk '{ print $1 }')
+    version_name=$(printf '%s\n' "$raw" \
+        | awk -F= '/^[[:space:]]*versionName=/ { print $2; exit }' \
+        | awk '{ print $1 }')
+    version_install=$(printf '%s\n' "$raw" \
+        | sed -n 's/.*lastUpdateTime=//p' \
+        | head -n 1)
+    case "$version_code" in
+        ''|*[!0-9]*) version_code="" ;;
+    esac
+}
+
 device_model=$(adb_s shell getprop ro.product.model 2>/dev/null | tr -d '\r' || true)
 device_android=$(adb_s shell getprop ro.build.version.release 2>/dev/null | tr -d '\r' || true)
 device_model=${device_model:-desconocido}
@@ -164,6 +216,20 @@ device_android=${device_android:-desconocida}
 if ! adb_s shell pm path "$PKG" >/dev/null 2>&1; then
     printf 'AVISO: %s no aparece instalado en %s.\n' "$PKG" "$serial" >&2
     printf '       El soak registrará alive=0 hasta que esté instalado y abierto.\n' >&2
+fi
+
+read_app_version
+if [ -z "$version_name" ] && [ -z "$version_code" ]; then
+    printf 'AVISO: no se pudo leer la versión de %s; el CSV quedará sin version_code.\n' "$PKG" >&2
+fi
+
+if [ -n "$expect_version" ]; then
+    if [ -z "$version_name" ] && [ -z "$version_code" ]; then
+        die "--expect-version $expect_version: no se pudo leer la versión instalada de $PKG"
+    fi
+    if [ "$expect_version" != "$version_name" ] && [ "$expect_version" != "$version_code" ]; then
+        die "versión instalada $version_name (code ${version_code:-n/a}); se esperaba $expect_version"
+    fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -312,6 +378,7 @@ main_fg_count=0
 crashes_total=0
 anrs_total=0
 pid_changes=0
+version_changes=0
 pss_valid_count=0
 pss_missing=0
 crash_buf_samples=0
@@ -365,7 +432,7 @@ print_summary() {
         }')
     fi
 
-    local events_ok alive_ok memory_ok fg_ok resultado
+    local events_ok alive_ok memory_ok fg_ok version_ok resultado
     events_ok="FAIL"
     if [ "$crashes_total" -eq 0 ] && [ "$anrs_total" -eq 0 ]; then
         events_ok="OK"
@@ -391,8 +458,18 @@ print_summary() {
         fg_ok="OK"
     fi
 
+    version_ok="OK"
+    if [ "$version_changes" -gt 0 ]; then
+        version_ok="FAIL"
+    fi
+    if [ -n "$expect_version" ] \
+        && [ "$expect_version" != "$version_name" ] && [ "$expect_version" != "$version_code" ]; then
+        version_ok="FAIL"
+    fi
+
     overall_pass=0
-    if [ "$events_ok" = "OK" ] && [ "$alive_ok" = "OK" ] && [ "$memory_ok" = "OK" ] && [ "$fg_ok" = "OK" ]; then
+    if [ "$events_ok" = "OK" ] && [ "$alive_ok" = "OK" ] && [ "$memory_ok" = "OK" ] \
+        && [ "$fg_ok" = "OK" ] && [ "$version_ok" = "OK" ]; then
         overall_pass=1
         resultado="PASS"
     else
@@ -401,6 +478,8 @@ print_summary() {
 
     printf '\n===== Resumen soak HomeClock =====\n'
     printf 'Dispositivo : %s\n' "$serial"
+    printf 'Versión app : %s (code %s) | esperada: %s\n' \
+        "${version_name:-n/a}" "${version_code:-n/a}" "${expect_version:-cualquiera}"
     printf 'CSV         : %s\n' "$out"
     printf 'Eventos     : %s\n' "$events_log"
     printf 'Duración    : %s h (%d s), %d muestras cada %s s\n' "$elapsed_h" "$elapsed_s" "$samples" "$interval"
@@ -414,11 +493,12 @@ print_summary() {
     printf 'Crecimiento : %s KB (%s MB, %s %%)\n' "$growth_txt" "$growth_mb_txt" "$growth_pct_txt"
     printf 'Incidencias : %d con notas; %d vivo sin PSS; %d con líneas en crash buffer; %d con hits FATAL/ANR\n' \
         "$notes_count" "$pss_missing" "$crash_buf_samples" "$log_hit_samples"
-    printf 'Criterios   : eventos=%s vivo=%s memoria=%s primer_plano=%s\n' \
-        "$events_ok" "$alive_ok" "$memory_ok" "$fg_ok"
+    printf 'Criterios   : eventos=%s vivo=%s memoria=%s primer_plano=%s version=%s\n' \
+        "$events_ok" "$alive_ok" "$memory_ok" "$fg_ok" "$version_ok"
     printf 'Resultado   : %s\n' "$resultado"
     printf '\nCriterios en docs/SOAK.md. El primer plano exige >=95 %% con una activity de HomeClock;\n'
-    printf 'la memoria exige crecimiento <20 %% o <50 MB; el proceso debe estar vivo en el 100 %%.\n'
+    printf 'la memoria exige crecimiento <20 %% o <50 MB; el proceso debe estar vivo en el 100 %%;\n'
+    printf 'y la versión no debe cambiar ni diferir de --expect-version.\n'
 }
 
 on_exit() {
@@ -435,12 +515,15 @@ trap on_exit EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-printf 'timestamp_iso,epoch_s,pid,alive,pss_total_kb,top_activity,app_in_foreground,main_in_foreground,crash_buffer_hits,logcat_hits,new_crashes,new_anrs,crashes_total,anrs_total,pid_changed,notes\n' > "$out"
+printf 'timestamp_iso,epoch_s,pid,alive,pss_total_kb,top_activity,app_in_foreground,main_in_foreground,crash_buffer_hits,logcat_hits,new_crashes,new_anrs,crashes_total,anrs_total,pid_changed,notes,version_code,version_name,version_changed\n' > "$out"
 {
     printf '# HomeClock soak — eventos nuevos\n'
     printf '# inicio: %s\n' "$start_iso"
     printf '# dispositivo: %s (%s, Android %s)\n' "$serial" "$device_model" "$device_android"
     printf '# paquete: %s\n' "$PKG"
+    printf '# app: %s (code %s), instalada %s\n' \
+        "${version_name:-desconocida}" "${version_code:-n/a}" "${version_install:-n/a}"
+    printf '# esperada: %s\n' "${expect_version:-cualquiera}"
     printf '# formato: timestamp_iso<TAB>tipo<TAB>linea\n'
 } > "$events_log"
 
@@ -452,6 +535,8 @@ anr_candidates | filter_new >/dev/null
 printf 'HomeClock soak\n'
 printf '  dispositivo : %s (%s, Android %s)\n' "$serial" "$device_model" "$device_android"
 printf '  paquete     : %s\n' "$PKG"
+printf '  app         : %s (code %s)\n' "${version_name:-desconocida}" "${version_code:-n/a}"
+printf '  esperada    : %s\n' "${expect_version:-cualquiera}"
 printf '  duración    : %s h (%s s), una muestra cada %s s\n' "$hours" "$total_seconds" "$interval"
 printf '  CSV         : %s\n' "$out"
 printf '  eventos     : %s\n' "$events_log"
@@ -509,6 +594,21 @@ while :; do
         prev_pid="$pid"
     fi
 
+    # Una actualización de la APK siempre reinicia el proceso, así que la
+    # versión solo puede cambiar donde cambia el PID. Se relee entonces para
+    # no lanzar `dumpsys package` en cada muestra durante 72 h.
+    version_changed=0
+    if [ "$pid_changed" -eq 1 ]; then
+        previous_code="$version_code"
+        previous_name="$version_name"
+        read_app_version
+        if [ -n "$previous_code" ] && [ -n "$version_code" ] \
+            && { [ "$version_code" != "$previous_code" ] || [ "$version_name" != "$previous_name" ]; }; then
+            version_changed=1
+            version_changes=$((version_changes + 1))
+        fi
+    fi
+
     crash_buffer_hits=0
     if [ -n "$crash_raw" ]; then
         crash_buffer_hits=$(printf '%s\n' "$crash_raw" | grep -cF "$PKG" || true)
@@ -556,6 +656,9 @@ while :; do
     fi
 
     notes=""
+    if [ "$version_changed" -eq 1 ]; then
+        notes="${notes}version_changed;"
+    fi
     if [ -n "$pid" ] && [ -z "$pss" ]; then
         notes="${notes}pss_unavailable;"
     fi
@@ -582,7 +685,7 @@ while :; do
         notes_count=$((notes_count + 1))
     fi
 
-    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
+    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
         "$(csv_escape "$ts_iso")" \
         "$ts_epoch" \
         "$(csv_escape "$pid")" \
@@ -598,7 +701,10 @@ while :; do
         "$crashes_total" \
         "$anrs_total" \
         "$pid_changed" \
-        "$(csv_escape "$notes")" >> "$out"
+        "$(csv_escape "$notes")" \
+        "$(csv_escape "$version_code")" \
+        "$(csv_escape "$version_name")" \
+        "$version_changed" >> "$out"
 
     if [ "$new_crashes" -gt 0 ]; then
         {

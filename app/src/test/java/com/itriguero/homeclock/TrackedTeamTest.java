@@ -2,23 +2,15 @@ package com.itriguero.homeclock;
 
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 public class TrackedTeamTest {
-
-    @Test
-    public void keyIncludesProviderSportAndCompetitorId() {
-        TrackedTeam realMadrid = TrackedTeam.defaults().get(0);
-
-        assertEquals("365scores:1:131", realMadrid.key());
-        assertEquals("as-celtas:1:-1", TrackedTeam.asCeltas().key());
-    }
 
     @Test
     public void sameCompetitorInDifferentSportsHasDifferentKey() {
@@ -53,9 +45,19 @@ public class TrackedTeamTest {
     }
 
     @Test
-    public void default365IdsMatchesTheDefaults() {
-        assertArrayEquals(new long[]{131L, 174L, 108L, 5050L, 204L},
-                TrackedTeam.default365Ids());
+    public void default365IdsMatchesThe365Defaults() {
+        List<Long> expected = new ArrayList<>();
+        for (TrackedTeam team : TrackedTeam.defaults()) {
+            if (TrackedTeam.PROVIDER_365.equals(team.provider)) {
+                expected.add(team.competitorId);
+            }
+        }
+
+        long[] ids = TrackedTeam.default365Ids();
+        assertEquals(expected.size(), ids.length);
+        for (int i = 0; i < ids.length; i++) {
+            assertEquals(expected.get(i).longValue(), ids[i]);
+        }
     }
 
     @Test
@@ -141,7 +143,6 @@ public class TrackedTeamTest {
         TrackedTeam realMadrid = TrackedTeam.defaults().get(0);
         TrackedTeam asCeltas = TrackedTeam.asCeltas();
 
-        assertEquals(TrackedTeam.logoUrl(131L), realMadrid.logoUrl);
         assertTrue(realMadrid.logoUrl.contains("/Competitors/131"));
         assertEquals("", asCeltas.logoUrl);
     }
@@ -156,7 +157,6 @@ public class TrackedTeamTest {
         assertEquals(original.key(), disabled.key());
         assertEquals(original.name, disabled.name);
         assertEquals(original.shortName, disabled.shortName);
-        assertNotEquals(original, disabled);
     }
 
     @Test

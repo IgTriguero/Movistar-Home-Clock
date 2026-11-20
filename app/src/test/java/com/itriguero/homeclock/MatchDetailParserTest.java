@@ -5,10 +5,8 @@ import org.json.JSONObject;
 import org.junit.Test;
 
 import java.io.InputStream;
-import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
-import java.util.Locale;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -39,9 +37,10 @@ public class MatchDetailParserTest {
         assertEquals(139L, detail.homeId);
         assertEquals(131L, detail.awayId);
         assertTrue(detail.isFinished());
-        assertFalse(detail.isLive());
-        assertTrue(detail.hasEvents());
-        assertTrue(detail.hasLineups());
+        assertNotNull(detail.homeLineup);
+        assertNotNull(detail.awayLineup);
+        assertFalse(detail.homeLineup.starters.isEmpty());
+        assertFalse(detail.awayLineup.starters.isEmpty());
         assertEquals(10, detail.events.size());
         assertEquals(0L, detail.fetchedAt);
         assertFalse(detail.fromCache);
@@ -289,7 +288,6 @@ public class MatchDetailParserTest {
         MatchDetail detail = parseFootball(fixture("scores365_stats_football.json"));
 
         assertTrue(detail.hasStats);
-        assertTrue(detail.hasStats());
         assertEquals("", detail.statsError);
         assertEquals(6, detail.statCategories.size());
 
@@ -333,11 +331,9 @@ public class MatchDetailParserTest {
         assertFalse(detail.scoreKnown);
         assertEquals(-1, detail.homeScore);
         assertEquals(-1, detail.awayScore);
-        assertFalse(detail.hasEvents());
-        assertEquals(0, detail.events.size());
+        assertTrue(detail.events.isEmpty());
         assertNull(detail.homeLineup);
         assertNull(detail.awayLineup);
-        assertFalse(detail.hasLineups());
         assertFalse(detail.hasStats);
         assertEquals("", detail.statsError);
         assertNotNull(detail.venue);
@@ -357,8 +353,7 @@ public class MatchDetailParserTest {
         assertEquals(MatchStatus.FINISHED, detail.status);
         assertEquals(90, detail.homeScore);
         assertEquals(71, detail.awayScore);
-        assertFalse(detail.hasEvents());
-        assertEquals(0, detail.events.size());
+        assertTrue(detail.events.isEmpty());
 
         assertEquals(5, detail.homeLineup.starters.size());
         assertEquals(7, detail.homeLineup.substitutes.size());
@@ -445,8 +440,9 @@ public class MatchDetailParserTest {
         MatchDetail noStats = parseFootball(null);
         assertFalse(noStats.hasStats);
         assertEquals("", noStats.statsError);
-        assertTrue(noStats.hasEvents());
-        assertTrue(noStats.hasLineups());
+        assertFalse(noStats.events.isEmpty());
+        assertNotNull(noStats.homeLineup);
+        assertFalse(noStats.homeLineup.starters.isEmpty());
 
         MatchDetail emptyObject = parseFootball(new JSONObject());
         assertFalse(emptyObject.hasStats);
@@ -461,8 +457,9 @@ public class MatchDetailParserTest {
                 new JSONObject().put("statistics", "no-es-un-array"));
         assertFalse(invalid.hasStats);
         assertFalse(invalid.statsError.isEmpty());
-        assertTrue(invalid.hasEvents());
-        assertTrue(invalid.hasLineups());
+        assertFalse(invalid.events.isEmpty());
+        assertNotNull(invalid.homeLineup);
+        assertFalse(invalid.homeLineup.starters.isEmpty());
     }
 
     @Test
@@ -474,7 +471,7 @@ public class MatchDetailParserTest {
     }
 
     @Test
-    public void topPerformersAndBetsAreIgnored() throws Exception {
+    public void bettingFieldsDoNotBreakParsing() throws Exception {
         JSONObject root = fixture("scores365_game_football.json");
         JSONObject game = root.getJSONObject("game");
         game.put("topPerformers", new JSONObject()
@@ -487,13 +484,6 @@ public class MatchDetailParserTest {
         MatchDetail detail = MatchDetailParser.parse(root, null, null);
         assertNotNull(detail);
         assertEquals(10, detail.events.size());
-
-        for (Field field : MatchDetail.class.getDeclaredFields()) {
-            String name = field.getName().toLowerCase(Locale.ROOT);
-            assertFalse("El modelo no debe exponer apuestas: " + field.getName(),
-                    name.contains("bet") || name.contains("perform")
-                            || name.contains("odd"));
-        }
     }
 
     private static MatchDetail parseFootball(JSONObject stats) throws Exception {

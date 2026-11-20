@@ -130,10 +130,6 @@ final class CityListCodec {
         }
     }
 
-    static City defaultCity() {
-        return City.defaultCity();
-    }
-
     private static Decoded fromLegacy(Legacy legacy) {
         City city = migrateCity(legacy);
 

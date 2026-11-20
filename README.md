@@ -111,7 +111,7 @@ Guarda una copia de `keys/homeclock-release.jks` y sus contraseñas. Sin esa cla
 
 - **587 tests** unitarios con JUnit y fixtures de las fuentes.
 - **Contrato diario** contra 365Scores, Open-Meteo, RFEF y Celta.
-- **Soak test** de 72 h: `tools/soak.sh` muestrea PID, PSS, actividad en primer plano y crashes/ANRs. Ver [`docs/SOAK.md`](docs/SOAK.md).
+- **Soak test** de 72 h: `tools/soak.sh` muestrea PID, versión instalada, PSS, actividad en primer plano y crashes/ANRs. Ver [`docs/SOAK.md`](docs/SOAK.md).
 - **Lint** sin errores; solo quedan avisos menores de rendimiento/estilo (pesos anidados, carpeta de icono adaptativo y plurales).
 - Sin AndroidX, sin analítica y sin cuentas.
 

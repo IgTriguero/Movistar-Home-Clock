@@ -8,7 +8,6 @@ import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class CityListCodecTest {
@@ -246,13 +245,6 @@ public class CityListCodecTest {
 
         assertEquals(first, second);
         assertEquals(first, CityListCodec.encode(decoded.list));
-    }
-
-    @Test
-    public void defaultCityDelegatesToCity() {
-        assertNotNull(City.defaultCity());
-        assertEquals(City.defaultCity().key(), CityListCodec.defaultCity().key());
-        assertEquals(City.defaultCity().name, CityListCodec.defaultCity().name);
     }
 
     private static void assertDefaultMigration(CityListCodec.Decoded decoded) {

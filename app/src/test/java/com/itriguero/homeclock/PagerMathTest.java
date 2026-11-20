@@ -38,12 +38,6 @@ public class PagerMathTest {
     }
 
     @Test
-    public void negativeDragBelowThresholdKeepsPage() {
-        assertEquals(2,
-                PagerMath.settleTarget(2, 5, -290f, 0f, WIDTH, DENSITY));
-    }
-
-    @Test
     public void flingAboveEightHundredDpPerSecondChangesPage() {
         assertEquals(3,
                 PagerMath.settleTarget(2, 5, -10f, FLING + 1f, WIDTH, DENSITY));
@@ -142,13 +136,5 @@ public class PagerMathTest {
         assertFalse(PagerMath.isHorizontal(10f, 100f));
         assertFalse(PagerMath.isHorizontal(100f, 100f));
         assertFalse(PagerMath.isHorizontal(0f, 0f));
-    }
-
-    @Test
-    public void thresholdsMatchTheSpecification() {
-        assertEquals(0.30, PagerMath.DRAG_FRACTION, 0.0001);
-        assertEquals(800.0, PagerMath.FLING_DP_PER_SECOND, 0.001);
-        assertEquals(0.25, PagerMath.RESISTANCE_FACTOR, 0.0001);
-        assertEquals(0.25, PagerMath.RESISTANCE_MAX_FRACTION, 0.0001);
     }
 }

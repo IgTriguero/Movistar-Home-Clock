@@ -107,22 +107,6 @@ final class MatchDetailCache {
         }
     }
 
-    synchronized void clear() {
-        File[] files = dir == null ? null : dir.listFiles();
-        if (files == null) return;
-        for (File file : files) delete(file);
-    }
-
-    synchronized int size() {
-        File[] files = dir == null ? null : dir.listFiles();
-        if (files == null) return 0;
-        int count = 0;
-        for (File file : files) {
-            if (isCacheFile(file)) count++;
-        }
-        return count;
-    }
-
     private void prune() {
         File[] files = dir == null ? null : dir.listFiles();
         if (files == null) return;

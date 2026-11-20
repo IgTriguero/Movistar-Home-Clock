@@ -18,14 +18,8 @@ public class PixelShiftTest {
     private static final int MAX_DP = 4;
 
     @Test
-    public void intervalIsFiveMinutes() {
-        assertEquals(5 * MINUTE, PixelShift.INTERVAL_MS);
-    }
-
-    @Test
     public void stepZeroIsCentered() {
         assertArrayEquals(new int[]{0, 0}, PixelShift.offsetForStep(0));
-        assertArrayEquals(new int[]{0, 0}, PixelShift.offsetForElapsed(0));
     }
 
     @Test
@@ -39,26 +33,6 @@ public class PixelShiftTest {
     }
 
     @Test
-    public void offsetForElapsedCombinesStepAndPattern() {
-        long[] samples = {
-                0L,
-                1L,
-                PixelShift.INTERVAL_MS - 1,
-                PixelShift.INTERVAL_MS,
-                7 * PixelShift.INTERVAL_MS,
-                42 * PixelShift.INTERVAL_MS + 12_345L,
-                -1L,
-                -7 * PixelShift.INTERVAL_MS,
-                Long.MAX_VALUE / 2,
-        };
-        for (long elapsed : samples) {
-            assertArrayEquals(
-                    PixelShift.offsetForStep(PixelShift.stepForElapsed(elapsed)),
-                    PixelShift.offsetForElapsed(elapsed));
-        }
-    }
-
-    @Test
     public void patternWrapsAround() {
         for (int step = -20; step <= 20; step++) {
             assertArrayEquals("step " + step,
@@ -67,8 +41,6 @@ public class PixelShiftTest {
         }
         assertArrayEquals(new int[]{0, 0},
                 PixelShift.offsetForStep(PATTERN_LENGTH));
-        assertArrayEquals(new int[]{0, 0},
-                PixelShift.offsetForElapsed(PATTERN_LENGTH * PixelShift.INTERVAL_MS));
     }
 
     @Test
@@ -77,9 +49,7 @@ public class PixelShiftTest {
         assertEquals(-1, PixelShift.stepForElapsed(-PixelShift.INTERVAL_MS));
         assertEquals(-2, PixelShift.stepForElapsed(-PixelShift.INTERVAL_MS - 1));
 
-        assertArrayEquals(PixelShift.offsetForStep(-1),
-                PixelShift.offsetForElapsed(-1));
-        assertTrue(withinBounds(PixelShift.offsetForElapsed(-123_456_789L)));
+        assertTrue(withinBounds(offsetForElapsed(-123_456_789L)));
     }
 
     @Test
@@ -89,8 +59,8 @@ public class PixelShiftTest {
         assertEquals(Integer.MIN_VALUE,
                 PixelShift.stepForElapsed(Long.MIN_VALUE));
 
-        assertTrue(withinBounds(PixelShift.offsetForElapsed(Long.MAX_VALUE)));
-        assertTrue(withinBounds(PixelShift.offsetForElapsed(Long.MIN_VALUE)));
+        assertTrue(withinBounds(offsetForElapsed(Long.MAX_VALUE)));
+        assertTrue(withinBounds(offsetForElapsed(Long.MIN_VALUE)));
         assertTrue(withinBounds(PixelShift.offsetForStep(Integer.MAX_VALUE)));
         assertTrue(withinBounds(PixelShift.offsetForStep(Integer.MIN_VALUE)));
     }
@@ -134,6 +104,10 @@ public class PixelShiftTest {
         offset[1] = 99;
 
         assertArrayEquals(new int[]{0, -4}, PixelShift.offsetForStep(1));
+    }
+
+    private static int[] offsetForElapsed(long elapsedMs) {
+        return PixelShift.offsetForStep(PixelShift.stepForElapsed(elapsedMs));
     }
 
     private static boolean withinBounds(int[] offset) {

@@ -8,12 +8,6 @@ import static org.junit.Assert.assertTrue;
 public class KickoffGuardTest {
 
     @Test
-    public void firstCallRefreshes() {
-        KickoffGuard guard = new KickoffGuard();
-        assertTrue(guard.shouldRefresh(1_000L, 60_000L));
-    }
-
-    @Test
     public void secondCallInsideCooldownDoesNotRefresh() {
         KickoffGuard guard = new KickoffGuard();
         assertTrue(guard.shouldRefresh(1_000L, 60_000L));

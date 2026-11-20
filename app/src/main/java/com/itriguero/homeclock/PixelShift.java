@@ -53,9 +53,4 @@ final class PixelShift {
     static int[] offsetForStep(int step) {
         return PATTERN[Math.floorMod(step, PATTERN.length)].clone();
     }
-
-    /** Desplazamiento en dp acumulado tras {@code elapsedMs}. */
-    static int[] offsetForElapsed(long elapsedMs) {
-        return offsetForStep(stepForElapsed(elapsedMs));
-    }
 }

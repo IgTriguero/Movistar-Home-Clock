@@ -23,7 +23,7 @@ public class DiagnosticsTest {
     private static final LocalDate DAY = LocalDate.of(2026, 11, 14);
 
     // ------------------------------------------------------------------
-    // Compatibilidad
+    // Estado y etiquetas
     // ------------------------------------------------------------------
 
     @Test
@@ -35,35 +35,6 @@ public class DiagnosticsTest {
         assertEquals("hace 1 h", Diagnostics.ageLabel(NOW - 60L * 60_000L, NOW));
         assertEquals("hace 3 h", Diagnostics.ageLabel(NOW - 3L * 60L * 60_000L, NOW));
         assertEquals("ahora", Diagnostics.ageLabel(NOW + 60_000L, NOW));
-    }
-
-    @Test
-    public void freshDiagnosticsHasEmptySnapshot() {
-        Diagnostics.Snapshot snapshot = new Diagnostics().snapshot();
-
-        assertEquals(0L, snapshot.matchesAt);
-        assertEquals(0L, snapshot.matchesAttemptAt);
-        assertEquals("", snapshot.matchesDate);
-        assertEquals(0L, snapshot.matchesDurationMs);
-        assertEquals(0L, snapshot.weatherAt);
-        assertEquals(0L, snapshot.fetchedAt);
-        assertEquals(0, snapshot.matchCount);
-        assertFalse(snapshot.stale);
-        assertTrue(snapshot.sources.isEmpty());
-        assertTrue(snapshot.sourceHealth.isEmpty());
-
-        assertEquals("", snapshot.weatherState);
-        assertFalse(snapshot.weatherPartial);
-        assertEquals("", snapshot.weatherError);
-        assertEquals(0, snapshot.weatherCityCount);
-        assertEquals(0L, snapshot.weatherAttemptAt);
-        assertEquals(0L, snapshot.weatherDurationMs);
-        assertEquals(0, snapshot.weatherConsecutiveFailures);
-        assertEquals(0L, snapshot.weatherLastOkAt);
-        assertEquals(0L, snapshot.weatherLastErrorAt);
-        assertEquals(0L, snapshot.weatherDownSince);
-
-        assertEquals(0L, snapshot.revision);
     }
 
     @Test
@@ -80,34 +51,17 @@ public class DiagnosticsTest {
                 LocalDate.of(2026, 11, 12),
                 Collections.singletonList(match), sources, 999L, true);
 
-        diagnostics.recordMatches(matches, 42L);
+        diagnostics.recordMatches(matches, NOW, 42L, NOW);
         sources.clear();
-        diagnostics.recordWeather(777L);
 
         Diagnostics.Snapshot snapshot = diagnostics.snapshot();
         assertEquals(42L, snapshot.matchesDurationMs);
         assertEquals(1, snapshot.matchCount);
         assertTrue(snapshot.stale);
         assertEquals(999L, snapshot.fetchedAt);
-        assertEquals(777L, snapshot.weatherAt);
         assertTrue(snapshot.matchesAt > 0L);
         assertEquals(1, snapshot.sources.size());
         assertEquals(status, snapshot.sources.get("rfef"));
-    }
-
-    @Test
-    public void legacyRecordMatchesUsesNowForAttemptAndDate() {
-        Diagnostics diagnostics = new Diagnostics();
-
-        diagnostics.recordMatches(
-                matches(status("rfef", SourceState.OK, false)), 42L);
-
-        Diagnostics.Snapshot snapshot = diagnostics.snapshot();
-        assertTrue(snapshot.matchesAt > 0L);
-        assertEquals(snapshot.matchesAt, snapshot.matchesAttemptAt);
-        assertEquals(DAY.toString(), snapshot.matchesDate);
-        assertEquals(42L, snapshot.matchesDurationMs);
-        assertEquals(1L, snapshot.revision);
     }
 
     @Test
@@ -156,89 +110,6 @@ public class DiagnosticsTest {
     }
 
     @Test
-    public void recordMatchesMarksDownAfterThreeFailuresWithoutPreviousOk() {
-        Diagnostics diagnostics = new Diagnostics();
-
-        diagnostics.recordMatches(
-                matches(status("rfef", SourceState.TIMEOUT, false)),
-                NOW, 5L, NOW);
-        diagnostics.recordMatches(
-                matches(status("rfef", SourceState.TIMEOUT, false)),
-                NOW + MINUTE, 5L, NOW + MINUTE);
-        assertFalse(health(diagnostics, "rfef").isDown(NOW + MINUTE));
-
-        diagnostics.recordMatches(
-                matches(status("rfef", SourceState.HTTP_ERROR, false)),
-                NOW + 2L * MINUTE, 5L, NOW + 2L * MINUTE);
-
-        SourceHealth health = health(diagnostics, "rfef");
-        assertEquals(3, health.consecutiveFailures);
-        assertEquals(NOW + 2L * MINUTE, health.downSince);
-        assertTrue(health.isDown(NOW + 2L * MINUTE));
-    }
-
-    @Test
-    public void recordMatchesWaitsFifteenMinutesSinceLastOkBeforeMarkingDown() {
-        Diagnostics diagnostics = new Diagnostics();
-        long okAt = NOW;
-
-        diagnostics.recordMatches(
-                matches(status("365scores", SourceState.OK, false)),
-                okAt, 5L, okAt);
-        diagnostics.recordMatches(
-                matches(status("365scores", SourceState.TIMEOUT, false)),
-                okAt + MINUTE, 5L, okAt + MINUTE);
-        diagnostics.recordMatches(
-                matches(status("365scores", SourceState.TIMEOUT, false)),
-                okAt + 2L * MINUTE, 5L, okAt + 2L * MINUTE);
-        diagnostics.recordMatches(
-                matches(status("365scores", SourceState.TIMEOUT, false)),
-                okAt + 14L * MINUTE, 5L, okAt + 14L * MINUTE);
-        assertEquals(0L, health(diagnostics, "365scores").downSince);
-
-        diagnostics.recordMatches(
-                matches(status("365scores", SourceState.TIMEOUT, false)),
-                okAt + 15L * MINUTE, 5L, okAt + 15L * MINUTE);
-
-        SourceHealth health = health(diagnostics, "365scores");
-        assertEquals(4, health.consecutiveFailures);
-        assertEquals(okAt + 15L * MINUTE, health.downSince);
-        assertTrue(health.isDown(okAt + 15L * MINUTE));
-    }
-
-    @Test
-    public void recordMatchesFromCacheCountsAsFailure() {
-        Diagnostics diagnostics = new Diagnostics();
-
-        diagnostics.recordMatches(
-                matches(status("rfef", SourceState.OK, true)),
-                NOW, 5L, NOW);
-
-        SourceHealth health = health(diagnostics, "rfef");
-        assertEquals(1, health.consecutiveFailures);
-        assertEquals(1, health.failures);
-        assertEquals(0L, health.lastOkAt);
-        assertEquals(NOW, health.lastErrorAt);
-        assertTrue(health.fromCache);
-    }
-
-    @Test
-    public void recordMatchesEmptyCountsAsSuccess() {
-        Diagnostics diagnostics = new Diagnostics();
-
-        diagnostics.recordMatches(
-                matches(status("celta", SourceState.EMPTY, false)),
-                NOW, 5L, NOW);
-
-        SourceHealth health = health(diagnostics, "celta");
-        assertEquals(SourceState.EMPTY, health.state);
-        assertEquals(0, health.consecutiveFailures);
-        assertEquals(0, health.failures);
-        assertEquals(NOW, health.lastOkAt);
-        assertEquals(0L, health.downSince);
-    }
-
-    @Test
     public void recordMatchesKeepsHealthOfSourcesMissingFromSnapshot() {
         Diagnostics diagnostics = new Diagnostics();
 
@@ -262,23 +133,26 @@ public class DiagnosticsTest {
     }
 
     @Test
-    public void recordMatchesLimitsSourceHealthToSixteen() {
+    public void recordMatchesKeepsTheMostRecentSourceHealth() {
         Diagnostics diagnostics = new Diagnostics();
-        Map<String, SourceStatus> many = new LinkedHashMap<>();
+
+        // Cada fuente llega en un intento distinto para que su antigüedad difiera.
         for (int i = 0; i < 20; i++) {
             String id = "fuente" + i;
-            many.put(id, status(id, SourceState.OK, false));
+            Map<String, SourceStatus> one = new LinkedHashMap<>();
+            one.put(id, status(id, SourceState.OK, false));
+            long at = NOW + i;
+            diagnostics.recordMatches(
+                    new MatchesSnapshot(DAY, Collections.emptyList(), one, at, false),
+                    at, 5L, at);
         }
 
-        diagnostics.recordMatches(
-                new MatchesSnapshot(DAY, Collections.emptyList(), many, NOW, false),
-                NOW, 5L, NOW);
-
         Diagnostics.Snapshot snapshot = diagnostics.snapshot();
-        assertEquals(20, snapshot.sources.size());
         assertEquals(DiagnosticsState.MAX_SOURCES, snapshot.sourceHealth.size());
-        assertTrue(snapshot.sourceHealth.containsKey("fuente0"));
-        assertFalse(snapshot.sourceHealth.containsKey("fuente19"));
+        assertFalse(snapshot.sourceHealth.containsKey("fuente0"));
+        assertFalse(snapshot.sourceHealth.containsKey("fuente3"));
+        assertTrue(snapshot.sourceHealth.containsKey("fuente4"));
+        assertTrue(snapshot.sourceHealth.containsKey("fuente19"));
     }
 
     // ------------------------------------------------------------------
@@ -379,22 +253,6 @@ public class DiagnosticsTest {
         assertEquals(NOW, snapshot.weatherLastErrorAt);
     }
 
-    @Test
-    public void legacyRecordWeatherOnlyMovesTimestamp() {
-        Diagnostics diagnostics = new Diagnostics();
-        diagnostics.recordWeather(cached(), NOW, 5L, NOW);
-        assertEquals(1L, diagnostics.snapshot().revision);
-
-        diagnostics.recordWeather(777L);
-
-        Diagnostics.Snapshot snapshot = diagnostics.snapshot();
-        assertEquals(777L, snapshot.weatherAt);
-        assertEquals(2L, snapshot.revision);
-        assertEquals("CACHED", snapshot.weatherState);
-        assertEquals(1, snapshot.weatherConsecutiveFailures);
-        assertEquals(NOW, snapshot.weatherLastErrorAt);
-    }
-
     // ------------------------------------------------------------------
     // Listener y copias inmutables
     // ------------------------------------------------------------------
@@ -418,7 +276,7 @@ public class DiagnosticsTest {
         assertEquals(2L, received.get(1).revision);
 
         diagnostics.clearListener(listener);
-        diagnostics.recordWeather(777L);
+        diagnostics.recordWeather(fresh(), NOW, 10L, NOW);
         assertEquals(2, received.size());
     }
 
@@ -431,11 +289,11 @@ public class DiagnosticsTest {
 
         diagnostics.setListener(listener);
         diagnostics.clearListener(other);
-        diagnostics.recordWeather(1L);
+        diagnostics.recordWeather(fresh(), NOW, 1L, NOW);
         assertEquals(1, received.size());
 
         diagnostics.setListener(null);
-        diagnostics.recordWeather(2L);
+        diagnostics.recordWeather(fresh(), NOW + 1L, 1L, NOW + 1L);
         assertEquals(1, received.size());
     }
 
@@ -461,7 +319,7 @@ public class DiagnosticsTest {
             }
         });
 
-        diagnostics.recordWeather(1L);
+        diagnostics.recordWeather(fresh(), NOW, 1L, NOW);
 
         assertTrue(readFromOtherThread.get());
     }

@@ -120,16 +120,6 @@ public class TeamSearchClientTest {
         assertEquals(Arrays.asList(131L, 9220L, 56903L, 27516L, 82460L,
                         90315L, 84489L, 204L),
                 ids(teams));
-
-        int firstBasketball = indexOfSport(teams, TrackedTeam.SPORT_BASKETBALL);
-        assertTrue(firstBasketball > 0);
-        for (int i = 0; i < teams.size(); i++) {
-            if (i < firstBasketball) {
-                assertEquals(TrackedTeam.SPORT_FOOTBALL, teams.get(i).sportId);
-            } else {
-                assertEquals(TrackedTeam.SPORT_BASKETBALL, teams.get(i).sportId);
-            }
-        }
     }
 
     @Test
@@ -298,18 +288,6 @@ public class TeamSearchClientTest {
     }
 
     @Test
-    public void parseSearchWithoutCompetitionMapLeavesItEmpty() throws Exception {
-        List<TrackedTeam> teams = TeamSearchClient.parseSearch(
-                fixture("scores365_search_real_madrid.json"));
-
-        for (TrackedTeam team : teams) {
-            if (team.competitorId == 204L) {
-                assertEquals("", team.competition);
-            }
-        }
-    }
-
-    @Test
     public void parseCompetitionsReadsRealResponse() throws Exception {
         Map<Long, String> competitions = TeamSearchClient.parseCompetitions(
                 fixture("scores365_competitions_11_14.json"));
@@ -413,13 +391,6 @@ public class TeamSearchClientTest {
             result[i] = teams.get(i).competitorId;
         }
         return Arrays.asList(result);
-    }
-
-    private static int indexOfSport(List<TrackedTeam> teams, int sportId) {
-        for (int i = 0; i < teams.size(); i++) {
-            if (teams.get(i).sportId == sportId) return i;
-        }
-        return -1;
     }
 
     private static String club(long id, int sportId, String name, long rank) {

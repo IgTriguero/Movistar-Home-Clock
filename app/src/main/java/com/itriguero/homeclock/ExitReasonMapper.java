@@ -34,10 +34,6 @@ final class ExitReasonMapper {
     private ExitReasonMapper() {
     }
 
-    static boolean isSupported(int sdkInt) {
-        return sdkInt >= 30;
-    }
-
     /**
      * Motivo legible. La señal solo se etiqueta como {@code signal} cuando el
      * estado es SIGKILL; otras señales no permiten distinguir con fiabilidad

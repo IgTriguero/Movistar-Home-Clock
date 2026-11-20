@@ -105,7 +105,7 @@ public class MatchDetailCacheTest {
         assertNotNull(scheduled);
 
         cache.save(scheduled);
-        assertEquals(0, cache.size());
+        assertEquals(0, jsonFiles());
         assertNull(cache.load(scheduledMatch()));
 
         MatchDetail live = footballDetail(10L).withFetch(10L, false);
@@ -117,7 +117,7 @@ public class MatchDetailCacheTest {
                 live.awayLineup, Collections.emptyList(), false, "",
                 live.tvNetworks, 10L, false);
         cache.save(liveDetail);
-        assertEquals(0, cache.size());
+        assertEquals(0, jsonFiles());
 
         Match liveMatch = finishedMatch(4750793L);
         liveMatch.status = MatchStatus.LIVE;
@@ -169,14 +169,18 @@ public class MatchDetailCacheTest {
     }
 
     @Test
-    public void readingRefreshesLastModifiedForLru() throws Exception {
-        cache.save(footballDetail(10L));
-        File file = new File(dir, "365scores_4750793.json");
-        assertTrue(file.setLastModified(1_000L));
-        assertEquals(1_000L, file.lastModified());
+    public void recentlyReadEntrySurvivesPruning() throws Exception {
+        for (int i = 1; i <= MatchDetailCache.MAX_FILES; i++) {
+            cache.save(smallDetail(i));
+            File file = new File(dir, "365scores_" + i + ".json");
+            assertTrue(file.setLastModified(1_000L + i * 1_000L));
+        }
 
-        assertNotNull(cache.load(finishedMatch(4750793L)));
-        assertTrue(file.lastModified() > 1_000L);
+        assertNotNull(cache.load(finishedMatch(1L)));
+        cache.save(smallDetail(MatchDetailCache.MAX_FILES + 1));
+
+        assertTrue(new File(dir, "365scores_1.json").exists());
+        assertFalse(new File(dir, "365scores_2.json").exists());
     }
 
     @Test
@@ -187,11 +191,11 @@ public class MatchDetailCacheTest {
             assertTrue(file.isFile());
             assertTrue(file.setLastModified(1_000L + i * 1_000L));
         }
-        assertEquals(MatchDetailCache.MAX_FILES, cache.size());
+        assertEquals(MatchDetailCache.MAX_FILES, jsonFiles());
 
         cache.save(smallDetail(MatchDetailCache.MAX_FILES + 1));
 
-        assertEquals(MatchDetailCache.MAX_FILES, cache.size());
+        assertEquals(MatchDetailCache.MAX_FILES, jsonFiles());
         assertFalse(new File(dir, "365scores_1.json").exists());
         assertTrue(new File(dir, "365scores_2.json").exists());
         assertTrue(new File(dir, "365scores_61.json").exists());
@@ -210,14 +214,9 @@ public class MatchDetailCacheTest {
         assertTrue(new File(dir, "365scores_4750793.json").isFile());
     }
 
-    @Test
-    public void clearRemovesAllEntries() throws Exception {
-        cache.save(footballDetail(10L));
-        cache.save(smallDetail(20L));
-        assertEquals(2, cache.size());
-
-        cache.clear();
-        assertEquals(0, cache.size());
+    private int jsonFiles() {
+        File[] files = dir.listFiles((ignored, name) -> name.endsWith(".json"));
+        return files == null ? 0 : files.length;
     }
 
     private static MatchDetail footballDetail(long fetchedAt) throws Exception {

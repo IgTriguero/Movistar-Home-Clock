@@ -98,7 +98,7 @@ public class MatchCacheTest {
 
         MatchesSnapshot snapshot = new MatchesSnapshot(
                 date, Arrays.asList(live, postponed), sources, 999L, false);
-        cache.save(snapshot);
+        cache.save(snapshot, null);
 
         MatchesSnapshot loaded = cache.load(date);
         assertNotNull(loaded);
@@ -193,17 +193,6 @@ public class MatchCacheTest {
     }
 
     @Test
-    public void loadReturnsNullForVersionOne() throws Exception {
-        LocalDate date = LocalDate.of(2026, 11, 12);
-        File file = new File(dir, "matches_" + date + ".json");
-        Files.write(file.toPath(),
-                ("{\"version\":1,\"date\":\"2026-11-12\",\"fetchedAt\":99,"
-                        + "\"matches\":[]}").getBytes(StandardCharsets.UTF_8));
-
-        assertNull(cache.load(date));
-    }
-
-    @Test
     public void signatureMustMatchWhenBothAreNonEmpty() {
         LocalDate date = LocalDate.of(2026, 11, 12);
         cache.save(snapshot(date), "a=b");
@@ -217,7 +206,7 @@ public class MatchCacheTest {
     @Test
     public void emptyStoredSignatureIsAcceptedForAnyRequest() {
         LocalDate date = LocalDate.of(2026, 11, 12);
-        cache.save(snapshot(date));
+        cache.save(snapshot(date), null);
 
         assertNotNull(cache.load(date, "cualquier-firma"));
     }

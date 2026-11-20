@@ -4,6 +4,7 @@
 Uso:
     python3 tools/soak_summary.py soak-72h.csv
     python3 tools/soak_summary.py soak-72h.csv --json
+    python3 tools/soak_summary.py soak-72h.csv --expect-version 1.3
 
 No usa dependencias externas: solo la biblioteca estándar.
 """
@@ -70,7 +71,7 @@ def read_rows(path):
     return rows
 
 
-def summarize(path):
+def summarize(path, expected_version=None):
     rows = read_rows(path)
 
     samples = len(rows)
@@ -129,6 +130,31 @@ def summarize(path):
             epochs.append(value)
     duration_s = (max(epochs) - min(epochs)) if len(epochs) >= 2 else 0
 
+    versions = []
+    seen_versions = set()
+    for row in rows:
+        code = str(row.get("version_code") or "").strip()
+        name = str(row.get("version_name") or "").strip()
+        if not code and not name:
+            continue
+        key = (code, name)
+        if key not in seen_versions:
+            seen_versions.add(key)
+            versions.append({"code": code or None, "name": name or None})
+    version_changes = sum(
+        1 for row in rows if to_int(row.get("version_changed")) == 1
+    )
+    version_ok = None
+    if versions or expected_version is not None:
+        version_ok = len(versions) <= 1 and version_changes == 0
+        if expected_version is not None:
+            match = any(
+                expected_version == item["name"] or expected_version == item["code"]
+                for item in versions
+            )
+            if not match:
+                version_ok = False
+
     events_ok = last_crashes == 0 and last_anrs == 0
     alive_ok = samples > 0 and alive_count == samples and pid_changes == 0
     memory_ok = None
@@ -137,7 +163,13 @@ def summarize(path):
             growth_percent is not None and growth_percent < 20.0
         )
     foreground_ok = percent(app_fg_count, samples) >= FOREGROUND_MIN_PERCENT
-    overall_pass = bool(events_ok and alive_ok and memory_ok and foreground_ok)
+    overall_pass = bool(
+        events_ok
+        and alive_ok
+        and memory_ok
+        and foreground_ok
+        and version_ok is not False
+    )
 
     return {
         "csv": str(path),
@@ -155,6 +187,11 @@ def summarize(path):
         "crashes": last_crashes,
         "anrs": last_anrs,
         "pid_changes": pid_changes,
+        "app_version": {
+            "versions": versions,
+            "changes": version_changes,
+            "expected": expected_version,
+        },
         "notes_samples": notes_count,
         "pss_missing_samples": pss_missing_samples,
         "crash_buffer_samples": crash_buffer_samples,
@@ -175,16 +212,37 @@ def summarize(path):
             "alive": "OK" if alive_ok else "FAIL",
             "memory": "N/A" if memory_ok is None else ("OK" if memory_ok else "FAIL"),
             "foreground": "OK" if foreground_ok else "FAIL",
+            "version": "N/A" if version_ok is None else ("OK" if version_ok else "FAIL"),
         },
         "overall_pass": overall_pass,
         "result": "PASS" if overall_pass else "FAIL",
     }
 
 
+def format_versions(app_version):
+    """Resume las versiones vistas en el CSV y los cambios detectados."""
+    parts = []
+    for item in app_version["versions"]:
+        if item["name"] and item["code"]:
+            parts.append(f"{item['name']} (code {item['code']})")
+        elif item["name"]:
+            parts.append(item["name"])
+        else:
+            parts.append(f"code {item['code']}")
+
+    text = ", ".join(parts) if parts else "sin datos"
+    if app_version["changes"]:
+        text += f" | CAMBIOS: {app_version['changes']}"
+    if app_version["expected"]:
+        text += f" | esperada: {app_version['expected']}"
+    return text
+
+
 def print_report(data):
     pss = data["pss"]
     print("===== Resumen soak HomeClock (recalculado) =====")
     print(f"CSV         : {data['csv']}")
+    print(f"Versión app : {format_versions(data['app_version'])}")
     print(
         f"Duración    : {data['duration_h']:.2f} h ({data['duration_s']} s), "
         f"{data['samples']} muestras"
@@ -225,7 +283,8 @@ def print_report(data):
     criteria = data["criteria"]
     print(
         f"Criterios   : eventos={criteria['events']} vivo={criteria['alive']} "
-        f"memoria={criteria['memory']} primer_plano={criteria['foreground']}"
+        f"memoria={criteria['memory']} primer_plano={criteria['foreground']} "
+        f"version={criteria['version']}"
     )
     print(f"Resultado   : {data['result']}")
 
@@ -236,6 +295,11 @@ def main():
     )
     parser.add_argument("csv", type=Path, help="CSV generado por tools/soak.sh")
     parser.add_argument(
+        "--expect-version",
+        metavar="N",
+        help="Falla si el CSV no corresponde a esta versión (versionName o versionCode).",
+    )
+    parser.add_argument(
         "--json",
         action="store_true",
         help="Imprime el resumen como JSON en vez de texto.",
@@ -243,7 +307,7 @@ def main():
     args = parser.parse_args()
 
     try:
-        data = summarize(args.csv)
+        data = summarize(args.csv, expected_version=args.expect_version)
     except (OSError, ValueError, csv.Error) as error:
         print(f"ERROR: {error}", file=sys.stderr)
         return 2

@@ -84,7 +84,6 @@ final class DiagnosticsStore implements Diagnostics.Listener {
     private boolean dirty;
     private long dirtySince;
     private ScheduledFuture<?> pending;
-    private long revision;
 
     /** Constructor inyectable para tests; el executor pasa a ser propiedad. */
     DiagnosticsStore(File dir, AndroidEnvironment env,
@@ -579,11 +578,6 @@ final class DiagnosticsStore implements Diagnostics.Listener {
         return state;
     }
 
-    /** Contador interno de escrituras correctas. */
-    synchronized long revision() {
-        return revision;
-    }
-
     /** Cancela el guardado pendiente y libera el executor (tests). */
     synchronized void close() {
         cancelPendingLocked();
@@ -645,10 +639,7 @@ final class DiagnosticsStore implements Diagnostics.Listener {
         state = DiagnosticsStateBuilder.from(state).build(env.now());
         dirty = false;
         dirtySince = 0L;
-
-        if (writeFile(state)) {
-            revision++;
-        }
+        writeFile(state);
     }
 
     private boolean writeFile(DiagnosticsState snapshot) {

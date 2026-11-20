@@ -42,10 +42,6 @@ public final class MatchCache {
         this.dir = dir;
     }
 
-    public void save(MatchesSnapshot snapshot) {
-        save(snapshot, null);
-    }
-
     /**
      * Guarda el snapshot junto a la firma de equipos que lo produjo. Una
      * firma vacía se acepta al leer para no invalidar cachés antiguas.

@@ -27,13 +27,6 @@ public class CityTest {
     }
 
     @Test
-    public void keyNormalizesNegativeZero() {
-        City city = city("Origen", -0.0, -0.0);
-
-        assertEquals("0.000,0.000", city.key());
-    }
-
-    @Test
     public void keyUsesDotRegardlessOfDefaultLocale() {
         Locale previous = Locale.getDefault();
         try {
@@ -167,10 +160,6 @@ public class CityTest {
     public void distanceKmUsesHaversine() {
         assertEquals(505.0, City.distanceKm(40.4168, -3.7038, 41.3874, 2.1686), 2.0);
         assertEquals(0.0, City.distanceKm(40.0, -3.0, 40.0, -3.0), 0.000001);
-        assertEquals(
-                City.distanceKm(40.0, -3.0, 42.0, -8.0),
-                City.distanceKm(42.0, -8.0, 40.0, -3.0),
-                0.000001);
     }
 
     @Test

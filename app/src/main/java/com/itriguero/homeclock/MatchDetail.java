@@ -101,25 +101,8 @@ final class MatchDetail {
                 error == null ? "" : error, tvNetworks, fetchedAt, fromCache);
     }
 
-    public boolean hasEvents() {
-        return !events.isEmpty();
-    }
-
-    public boolean hasLineups() {
-        return (homeLineup != null && !homeLineup.starters.isEmpty())
-                || (awayLineup != null && !awayLineup.starters.isEmpty());
-    }
-
-    public boolean hasStats() {
-        return hasStats;
-    }
-
     public boolean isFinished() {
         return status.isFinished();
-    }
-
-    public boolean isLive() {
-        return status.isLive();
     }
 
     private static <T> List<T> immutable(List<T> source) {

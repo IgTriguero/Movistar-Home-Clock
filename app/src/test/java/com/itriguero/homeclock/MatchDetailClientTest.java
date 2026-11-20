@@ -38,23 +38,17 @@ public class MatchDetailClientTest {
 
     @Test
     public void gateRejectsNullWrongSourceAndInvalidIdWithoutNetwork() {
-        long start = System.nanoTime();
-
         SourceResult<MatchDetail> nullMatch = MatchDetailClient.fetch(null, true);
         assertEquals(SourceState.EMPTY, nullMatch.state);
-        assertEquals(0L, nullMatch.durationMs);
 
         Match wrongSource = match(GAME_ID, "rfef", MatchStatus.FINISHED);
         SourceResult<MatchDetail> otherSource = MatchDetailClient.fetch(wrongSource, true);
         assertEquals(SourceState.EMPTY, otherSource.state);
-        assertEquals(0L, otherSource.durationMs);
 
         Match invalidId = match(0L, "365scores", MatchStatus.FINISHED);
         SourceResult<MatchDetail> noId = MatchDetailClient.fetch(invalidId, true);
         assertEquals(SourceState.EMPTY, noId.state);
-        assertEquals(0L, noId.durationMs);
 
-        assertTrue(System.nanoTime() >= start);
         assertFalse(MatchDetailClient.canFetch(wrongSource));
         assertFalse(MatchDetailClient.canFetch(invalidId));
         assertTrue(MatchDetailClient.canFetch(match(GAME_ID, "365scores",
@@ -133,8 +127,9 @@ public class MatchDetailClientTest {
         assertNotNull(result.data);
         assertFalse(result.data.hasStats);
         assertEquals("Sin estadísticas", result.data.statsError);
-        assertTrue(result.data.hasEvents());
-        assertTrue(result.data.hasLineups());
+        assertFalse(result.data.events.isEmpty());
+        assertNotNull(result.data.homeLineup);
+        assertFalse(result.data.homeLineup.starters.isEmpty());
     }
 
     @Test

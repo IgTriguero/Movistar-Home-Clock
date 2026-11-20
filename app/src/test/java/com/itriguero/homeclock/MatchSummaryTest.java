@@ -6,8 +6,6 @@ import java.util.Arrays;
 import java.util.Collections;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 /**
  * Reglas del resumen de goles de la cabecera: propia, penalti, anulado,
@@ -21,9 +19,8 @@ public class MatchSummaryTest {
 
         assertEquals(0, summary.count(true));
         assertEquals(0, summary.count(false));
-        assertFalse(summary.hasScorers(true));
-        assertFalse(summary.hasScorers(false));
         assertEquals("", summary.scorerLine(true, 2, 0));
+        assertEquals("", summary.scorerLine(false, 2, 0));
     }
 
     @Test
@@ -33,8 +30,8 @@ public class MatchSummaryTest {
                 event(MatchEvent.Type.PENALTY_GOAL, MatchEvent.Side.HOME, "Álvaro Morata"),
                 event(MatchEvent.Type.GOAL, MatchEvent.Side.AWAY, "Harry Kane")));
 
-        assertEquals(Arrays.asList("Pedro Porro", "Álvaro Morata"), summary.scorers(true));
-        assertEquals(Collections.singletonList("Harry Kane"), summary.scorers(false));
+        assertEquals("Porro, Morata", summary.scorerLine(true, 2, 2));
+        assertEquals("Kane", summary.scorerLine(false, 2, 1));
         assertEquals(2, summary.count(true));
         assertEquals(1, summary.count(false));
     }
@@ -44,8 +41,8 @@ public class MatchSummaryTest {
         MatchSummary summary = MatchSummary.from(0, 1, Collections.singletonList(
                 event(MatchEvent.Type.OWN_GOAL, MatchEvent.Side.HOME, "Declan Rice")));
 
-        assertFalse(summary.hasScorers(true));
-        assertEquals(Collections.singletonList("Declan Rice"), summary.scorers(false));
+        assertEquals("", summary.scorerLine(true, 2, 0));
+        assertEquals("Rice (p.p.)", summary.scorerLine(false, 2, 1));
         assertEquals(1, summary.count(false));
     }
 
@@ -54,9 +51,9 @@ public class MatchSummaryTest {
         MatchSummary summary = MatchSummary.from(1, 0, Collections.singletonList(
                 event(MatchEvent.Type.OWN_GOAL, MatchEvent.Side.AWAY, "Declan Rice")));
 
-        assertEquals(Collections.singletonList("Declan Rice"), summary.scorers(true));
-        assertFalse(summary.hasScorers(false));
         assertEquals("Rice (p.p.)", summary.scorerLine(true, 2, 1));
+        assertEquals("", summary.scorerLine(false, 2, 0));
+        assertEquals(1, summary.count(true));
     }
 
     @Test
@@ -65,8 +62,8 @@ public class MatchSummaryTest {
                 event(MatchEvent.Type.DISALLOWED_GOAL, MatchEvent.Side.HOME, "Lamine Yamal"),
                 event(MatchEvent.Type.DISALLOWED_GOAL, MatchEvent.Side.AWAY, "Harry Kane")));
 
-        assertFalse(summary.hasScorers(true));
-        assertFalse(summary.hasScorers(false));
+        assertEquals("", summary.scorerLine(true, 2, 0));
+        assertEquals("", summary.scorerLine(false, 2, 0));
     }
 
     @Test
@@ -74,8 +71,8 @@ public class MatchSummaryTest {
         MatchSummary summary = MatchSummary.from(0, 0, Collections.singletonList(
                 event(MatchEvent.Type.GOAL, MatchEvent.Side.NEUTRAL, "Jugador neutral")));
 
-        assertFalse(summary.hasScorers(true));
-        assertFalse(summary.hasScorers(false));
+        assertEquals("", summary.scorerLine(true, 2, 0));
+        assertEquals("", summary.scorerLine(false, 2, 0));
     }
 
     @Test
@@ -86,7 +83,7 @@ public class MatchSummaryTest {
         // La fuente no publica todos los eventos: el conteo es el oficial.
         assertEquals(3, summary.count(true));
         assertEquals(1, summary.count(false));
-        assertEquals(1, summary.scorers(true).size());
+        assertEquals("Porro", summary.scorerLine(true, 2, 3));
         assertEquals("", summary.scorerLine(false, 2, 1));
     }
 
@@ -124,21 +121,12 @@ public class MatchSummaryTest {
     }
 
     @Test
-    public void elContadorNoCuentaGolesSinEvento() {
-        // Tres goles oficiales y un solo evento: no se inventan +2.
-        MatchSummary summary = MatchSummary.from(3, 0, Collections.singletonList(
-                event(MatchEvent.Type.GOAL, MatchEvent.Side.HOME, "Pedro Porro")));
-
-        assertEquals("Porro", summary.scorerLine(true, 2, 3));
-    }
-
-    @Test
     public void laListaNulaEsSegura() {
         MatchSummary summary = MatchSummary.from(1, 2, null);
 
         assertEquals(1, summary.count(true));
         assertEquals(2, summary.count(false));
-        assertTrue(summary.scorers(true).isEmpty());
+        assertEquals("", summary.scorerLine(true, 2, 1));
     }
 
     private static MatchEvent event(MatchEvent.Type type, MatchEvent.Side side, String player) {

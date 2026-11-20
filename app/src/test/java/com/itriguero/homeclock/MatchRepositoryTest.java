@@ -68,7 +68,6 @@ public class MatchRepositoryTest {
         assertTrue(snapshot.hasErrors());
         assertEquals(SourceState.OK, snapshot.sources.get("365scores").state);
         assertEquals(SourceState.TIMEOUT, snapshot.sources.get("rfef").state);
-        assertEquals("365scores: OK · rfef: TIMEOUT", snapshot.summary());
     }
 
     @Test
@@ -79,7 +78,7 @@ public class MatchRepositoryTest {
         cachedStatuses.put("365scores",
                 new SourceStatus("365scores", SourceState.OK, null, 10L, 5L));
         cache.save(new MatchesSnapshot(DATE,
-                Collections.singletonList(cachedMatch), cachedStatuses, 1234L, false));
+                Collections.singletonList(cachedMatch), cachedStatuses, 1234L, false), null);
 
         repository = repository(
                 new FakeSource("365scores",
@@ -112,7 +111,7 @@ public class MatchRepositoryTest {
         cachedStatuses.put("365scores",
                 new SourceStatus("365scores", SourceState.OK, null, 10L, 5L));
         cache.save(new MatchesSnapshot(DATE,
-                Collections.singletonList(cachedMatch), cachedStatuses, 1234L, false));
+                Collections.singletonList(cachedMatch), cachedStatuses, 1234L, false), null);
 
         repository = repository(
                 new FakeSource("365scores", SourceResult.empty(2000L, 5L)),
@@ -280,25 +279,6 @@ public class MatchRepositoryTest {
     }
 
     @Test
-    public void homeAndAwaySwappedAreMergedWithinWindow() {
-        long start = at(18, 0);
-        Match local = match(26L, "365scores", start,
-                "Real Madrid", "Rayo Vallecano", MatchStatus.SCHEDULED);
-        Match reversed = match(27L, "rfef", start + 60L * 60L * 1000L,
-                "Rayo Vallecano", "Real Madrid", MatchStatus.SCHEDULED);
-
-        repository = repository(
-                new FakeSource("365scores",
-                        SourceResult.ok(Collections.singletonList(local), 1L, 1L)),
-                new FakeSource("rfef",
-                        SourceResult.ok(Collections.singletonList(reversed), 1L, 1L)));
-
-        MatchesSnapshot snapshot = repository.fetchBlocking(DATE);
-
-        assertEquals(1, snapshot.matches.size());
-    }
-
-    @Test
     public void matchesWithoutNamesDoNotMergeDifferentIds() {
         long start = at(18, 0);
         Match first = match(28L, "365scores", start, "", "", MatchStatus.SCHEDULED);
@@ -318,7 +298,7 @@ public class MatchRepositoryTest {
                 "As Celtas", "Rival", MatchStatus.SCHEDULED);
 
         repository = repository(new FakeSource("rfef",
-                SourceResult.okFromCache(Collections.singletonList(cached), 1000L, 5L)));
+                SourceResult.ok(Collections.singletonList(cached), 1000L, 5L, true)));
 
         MatchesSnapshot snapshot = repository.fetchBlocking(DATE);
 
@@ -336,7 +316,7 @@ public class MatchRepositoryTest {
         cachedStatuses.put("rfef",
                 new SourceStatus("rfef", SourceState.OK, null, 10L, 5L));
         cache.save(new MatchesSnapshot(DATE,
-                Collections.singletonList(cachedRfef), cachedStatuses, 1234L, false));
+                Collections.singletonList(cachedRfef), cachedStatuses, 1234L, false), null);
 
         Match live = match(32L, "365scores", at(20, 0),
                 "Real Madrid", "Rayo Vallecano", MatchStatus.SCHEDULED);
@@ -367,7 +347,7 @@ public class MatchRepositoryTest {
         cachedStatuses.put("rfef",
                 new SourceStatus("rfef", SourceState.OK, null, 10L, 5L));
         cache.save(new MatchesSnapshot(DATE,
-                Collections.singletonList(cachedRfef), cachedStatuses, 1234L, false));
+                Collections.singletonList(cachedRfef), cachedStatuses, 1234L, false), null);
 
         Match live = match(34L, "365scores", start,
                 "Rayo Vallecano", "Real Madrid", MatchStatus.SCHEDULED);

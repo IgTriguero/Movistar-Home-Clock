@@ -19,7 +19,7 @@ El harness **solo lee** del dispositivo:
 - El host que ejecuta el script sin suspensión. En macOS:
 
   ```bash
-  caffeinate -i ./tools/soak.sh --hours 72 --out soak-72h.csv
+  caffeinate -i ./tools/soak.sh --hours 72 --expect-version 1.3 --out soak-72h.csv
   ```
 
 - Red disponible. La app consulta Open-Meteo, 365Scores, RFEF y Celta; una caída
@@ -31,7 +31,8 @@ Desde la raíz de `HomeClock`:
 
 ```bash
 chmod +x tools/soak.sh
-./tools/soak.sh --serial <adb-serial> --hours 72 --interval 60 --out soak-72h.csv
+./tools/soak.sh --serial <adb-serial> --hours 72 --interval 60 \
+  --expect-version 1.3 --out soak-1.3-72h.csv
 ```
 
 Si hay un solo dispositivo, `--serial` se puede omitir. También se respeta la
@@ -41,8 +42,8 @@ dispositivo en estado `device`.
 Para dejarlo corriendo sin ocupar la terminal:
 
 ```bash
-nohup ./tools/soak.sh --serial <adb-serial> --hours 72 --interval 60 \
-  --out soak-72h.csv > soak-72h.log 2>&1 &
+nohup caffeinate -i ./tools/soak.sh --serial <adb-serial> --hours 72 --interval 60 \
+  --expect-version 1.3 --out soak-1.3-72h.csv > soak-1.3-72h.log 2>&1 &
 ```
 
 Para detenerlo antes de tiempo, envía `SIGTERM` (o `Ctrl-C` si está en primer
@@ -70,6 +71,7 @@ El smoke valida el harness (ADB, CSV, resumen), no la estabilidad de 72 h.
 | `--serial <serial>` | `$ANDROID_SERIAL` o primer `device` | Serial ADB. |
 | `--hours <n>` | `72` | Duración en horas. Admite decimales (`0.02`). |
 | `--interval <segundos>` | `60` | Segundos entre muestras. Entero > 0. |
+| `--expect-version <n>` | — | Aborta con exit 2 si la versión instalada no es `n`. Acepta `versionName` (`1.3`) o `versionCode` (`5`). |
 | `--out <csv>` | `soak-YYYYmmdd-HHMMSS.csv` | CSV de salida. Falla si ya existe. |
 | `-h`, `--help` | — | Ayuda. |
 
@@ -104,12 +106,13 @@ Sobre una ejecución válida de 72 h:
 | Proceso vivo | **100 %** de las muestras | `alive = 1` en todas las filas y sin cambios de PID. |
 | Memoria | crecimiento de PSS **< 20 %** o **< 50 MB** | primera vs. última muestra con PSS; además, revisar que no haya una tendencia monótona preocupante. |
 | Primer plano | `MainActivity` el **100 %** (ideal) | `main_in_foreground = 1`. Se toleran `SettingsActivity` y el diálogo/instalador de actualización; el resumen considera OK si ≥95 % de las muestras tienen alguna activity de HomeClock. El instalador del sistema no es HomeClock: solo pasa por el margen del 5 %. |
+| Versión | **una sola** y la esperada | `version_changed = 0` en todas las filas y `version_name`/`version_code` iguales a `--expect-version`. |
 | Peticiones | sin ráfagas ni bucles | revisión manual (ver abajo). |
 
-Un solo crash, ANR, PID nuevo o muestra con `alive = 0` invalida la prueba. Si el
-dispositivo se reinició o se actualizó la app durante el soak, hay que repetirlo:
-el cambio de PID y la pérdida de primer plano son esperados, pero impiden atribuir
-el resultado a la versión que se quería probar.
+Un solo crash, ANR, PID nuevo, cambio de versión o muestra con `alive = 0`
+invalida la prueba. Si el dispositivo se reinició o se actualizó la app durante
+el soak, hay que repetirlo: el cambio de PID y la pérdida de primer plano son
+esperados, pero impiden atribuir el resultado a la versión que se quería probar.
 
 El `PASS` automático no evalúa la red: si la revisión manual detecta un bucle de
 peticiones, el soak es `FAIL` aunque el script haya salido con `0`.
@@ -168,7 +171,10 @@ Una fila por muestra, en orden cronológico. `timestamp_iso` y `epoch_s` son UTC
 | `crashes_total` | Acumulado de crashes nuevos desde el inicio. |
 | `anrs_total` | Acumulado de ANRs nuevos desde el inicio. |
 | `pid_changed` | `1` si el PID cambió respecto a la muestra anterior con PID. |
-| `notes` | Incidencias del muestreo: `pss_unavailable`, `pss_error`, `top_error`, `top_empty`, `logcat_crash_error`, `logcat_main_error`, `adb_unreachable`. |
+| `notes` | Incidencias del muestreo: `version_changed`, `pss_unavailable`, `pss_error`, `top_error`, `top_empty`, `logcat_crash_error`, `logcat_main_error`, `adb_unreachable`. |
+| `version_code` | `versionCode` de la app instalada según `dumpsys package`. |
+| `version_name` | `versionName` de la app instalada según `dumpsys package`. |
+| `version_changed` | `1` si la versión cambió respecto a la muestra anterior. |
 
 Lecturas típicas:
 
@@ -178,7 +184,10 @@ Lecturas típicas:
 - **`pss_total_kb` vacío con `alive = 1`**: `dumpsys meminfo` no devolvió una
   línea `TOTAL` parseable. Queda anotado como `pss_unavailable`; no es un crash.
 - **`pid_changed = 1`**: reinicio del proceso. Aunque `alive = 1`, la prueba no es
-  limpia: el crecimiento de PSS mezcla dos procesos.
+  limpia: el crecimiento de PSS mezcla dos procesos. Si además `version_changed = 1`,
+  alguien instaló otra APK a mitad del soak.
+- **`version_changed = 1`**: la app se actualizó durante la prueba. El CSV mezcla
+  dos versiones y el resultado no se puede atribuir a la esperada: `FAIL`.
 - **`crash_buffer_hits > 0` con `new_crashes = 0`**: hay líneas de un crash
   anterior en el buffer; no cuenta como crash nuevo.
 - **`top_empty`**: el formato de `dumpsys activity` no trajo `topResumedActivity`.
@@ -203,8 +212,9 @@ Ejemplo (no es una ejecución real):
 ```text
 ===== Resumen soak HomeClock =====
 Dispositivo : <serial>
-CSV         : soak-72h.csv
-Eventos     : soak-72h.events.log
+Versión app : 1.3 (code 5) | esperada: 1.3
+CSV         : soak-1.3-72h.csv
+Eventos     : soak-1.3-72h.events.log
 Duración    : 72.00 h (259200 s), 4320 muestras cada 60 s
 Proceso vivo: 4320/4320 (100.0 %)
 MainActivity: 4317/4320 (99.9 %) | HomeClock en primer plano: 4320/4320 (100.0 %)
@@ -213,7 +223,7 @@ Reinicios   : 0 cambio(s) de PID
 PSS total   : min 61200 KB | max 68900 KB | primera 62000 KB | última 65400 KB (4320 muestras)
 Crecimiento : 3400 KB (3.3 MB, 5.5 %)
 Incidencias : 0 con notas; 0 vivo sin PSS; 0 con líneas en crash buffer; 0 con hits FATAL/ANR
-Criterios   : eventos=OK vivo=OK memoria=OK primer_plano=OK
+Criterios   : eventos=OK vivo=OK memoria=OK primer_plano=OK version=OK
 Resultado   : PASS
 ```
 
@@ -236,12 +246,15 @@ son la evidencia para investigar.
 bash ni de ADB. Solo usa la biblioteca estándar de Python 3.
 
 ```bash
-python3 tools/soak_summary.py soak-72h.csv
-python3 tools/soak_summary.py soak-72h.csv --json
+python3 tools/soak_summary.py soak-1.3-72h.csv
+python3 tools/soak_summary.py soak-1.3-72h.csv --json
+python3 tools/soak_summary.py soak-1.3-72h.csv --expect-version 1.3
 ```
 
-El modo `--json` es útil para guardar el resultado en CI. Sale con `0` si `PASS`,
-`1` si `FAIL` y `2` si el CSV no se puede leer.
+Muestra la versión (o versiones) vista en el CSV y falla si hay más de una o si
+no coincide con `--expect-version`. El modo `--json` es útil para guardar el
+resultado en CI. Sale con `0` si `PASS`, `1` si `FAIL` y `2` si el CSV no se
+puede leer.
 
 ## Qué hacer si falla
 
@@ -286,6 +299,14 @@ forman parte del estado reproducido.
 3. Revisa optimización de batería, ahorro de energía y políticas de Home 2.0.
 4. Si fue una actualización de la app, el PID nuevo es esperado; repite el soak
    con la versión final y sin actualizaciones pendientes.
+
+### Versión cambiada
+
+`version_changed = 1` significa que se instaló otra APK a mitad del soak. El PID
+cambia siempre en una actualización, así que el harness lo detecta en la misma
+muestra. No hay nada que arreglar en la app: repite el soak con la versión
+objetivo y sin actualizaciones pendientes. Si la app se autoactualiza, revisa
+`update.json` y no publiques una release nueva mientras dure la prueba.
 
 ### Crecimiento de PSS
 
@@ -343,3 +364,6 @@ forman parte del estado reproducido.
   reinicies a mitad del soak: invalida la serie.
 - El host debe permanecer despierto y con el dispositivo conectado. Un portátil
   que se suspende produce huecos de ADB.
+- La versión se lee con `dumpsys package` al arrancar y solo se relee cuando
+  cambia el PID. Como instalar una APK reinicia siempre el proceso, un cambio de
+  versión no se escapa; en Android antiguo puede faltar `lastUpdateTime`.

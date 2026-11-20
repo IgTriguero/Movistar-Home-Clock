@@ -198,8 +198,7 @@ public class DiagnosticsStoreTest {
         assertTrue(state.exits.isEmpty());
         assertEquals(0, state.counters.exits);
         assertEquals(1, state.exitScanKeys.size());
-        assertEquals(ExitInfoReader.key(1_000L, 321,
-                ExitReasonMapper.REASON_CRASH, 0), state.exitScanKeys.get(0));
+        assertEquals("1000:321:4:0", state.exitScanKeys.get(0));
     }
 
     @Test

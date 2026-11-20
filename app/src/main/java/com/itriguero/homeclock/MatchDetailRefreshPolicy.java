@@ -59,8 +59,4 @@ final class MatchDetailRefreshPolicy {
 
         return ERROR;
     }
-
-    static boolean shouldPoll(Match match, MatchDetail detail, long now) {
-        return nextDelay(match, detail, now) != Long.MAX_VALUE;
-    }
 }

@@ -30,11 +30,6 @@ final class SourceHealthPolicy {
         return status.state == SourceState.OK || status.state == SourceState.EMPTY;
     }
 
-    /** Cualquier otro caso, incluida una respuesta servida desde caché. */
-    static boolean isFailure(SourceStatus status) {
-        return status != null && !isSuccess(status);
-    }
-
     /**
      * Aplica un intento al historial de la fuente. Un {@code status} nulo no
      * representa un intento y devuelve la salud anterior sin cambios.
@@ -69,10 +64,6 @@ final class SourceHealthPolicy {
                 status.fromCache, status.matchCount,
                 consecutiveFailures, downSince, attempts,
                 increment(base.failures));
-    }
-
-    static boolean isDown(SourceHealth health, long now) {
-        return health != null && health.isDown(now);
     }
 
     private static int increment(int value) {

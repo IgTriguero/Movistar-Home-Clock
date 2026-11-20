@@ -221,11 +221,12 @@ public class SourceContractTest {
         assertEquals(SourceState.OK, result.state);
         MatchDetail detail = result.data;
         assertNotNull("El detalle no puede ser nulo", detail);
-        assertTrue("El detalle no trae eventos", detail.hasEvents());
-        assertTrue("El detalle no trae alineaciones", detail.hasLineups());
+        assertFalse("El detalle no trae eventos", detail.events.isEmpty());
+        assertNotNull("El detalle no trae alineaciones local", detail.homeLineup);
+        assertNotNull("El detalle no trae alineaciones visitante", detail.awayLineup);
         assertTrue("El detalle no trae estadio ni árbitro",
                 detail.venue != null || !detail.officials.isEmpty());
-        if (detail.hasStats()) {
+        if (detail.hasStats) {
             assertFalse("El detalle dice tener stats pero no hay categorías",
                     detail.statCategories.isEmpty());
         }

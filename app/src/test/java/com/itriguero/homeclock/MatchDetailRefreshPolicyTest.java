@@ -5,8 +5,6 @@ import org.junit.Test;
 import java.util.Collections;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
 
 public class MatchDetailRefreshPolicyTest {
 
@@ -17,33 +15,31 @@ public class MatchDetailRefreshPolicyTest {
         Match match = match(MatchStatus.FINISHED, "Fútbol", NOW + 60_000L);
         assertEquals(Long.MAX_VALUE,
                 MatchDetailRefreshPolicy.nextDelay(match, detail(MatchStatus.FINISHED), NOW));
-        assertFalse(MatchDetailRefreshPolicy.shouldPoll(match,
-                detail(MatchStatus.FINISHED), NOW));
     }
 
     @Test
     public void liveFootballPollsEvery20Seconds() {
-        assertEquals(MatchDetailRefreshPolicy.LIVE_FOOTBALL,
+        assertEquals(20_000L,
                 MatchDetailRefreshPolicy.nextDelay(
                         match(MatchStatus.LIVE, "Fútbol", NOW), null, NOW));
-        assertEquals(MatchDetailRefreshPolicy.LIVE_FOOTBALL,
+        assertEquals(20_000L,
                 MatchDetailRefreshPolicy.nextDelay(
                         match(MatchStatus.LIVE, "Fútbol Sala", NOW), null, NOW));
     }
 
     @Test
     public void liveBasketballPollsEvery15Seconds() {
-        assertEquals(MatchDetailRefreshPolicy.LIVE_BASKETBALL,
+        assertEquals(15_000L,
                 MatchDetailRefreshPolicy.nextDelay(
                         match(MatchStatus.LIVE, "Baloncesto", NOW), null, NOW));
     }
 
     @Test
     public void liveUnknownSportUsesApproximateDelay() {
-        assertEquals(MatchDetailRefreshPolicy.LIVE_APPROX,
+        assertEquals(30_000L,
                 MatchDetailRefreshPolicy.nextDelay(
                         match(MatchStatus.LIVE, "Tenis", NOW), null, NOW));
-        assertEquals(MatchDetailRefreshPolicy.LIVE_APPROX,
+        assertEquals(30_000L,
                 MatchDetailRefreshPolicy.nextDelay(
                         match(MatchStatus.LIVE_APPROX, "Fútbol", NOW), null, NOW));
     }
@@ -61,7 +57,7 @@ public class MatchDetailRefreshPolicyTest {
                 detail.hasStats, detail.statsError, detail.tvNetworks,
                 detail.fetchedAt, detail.fromCache);
 
-        assertEquals(MatchDetailRefreshPolicy.LIVE_BASKETBALL,
+        assertEquals(15_000L,
                 MatchDetailRefreshPolicy.nextDelay(match, detail, NOW));
     }
 
@@ -71,13 +67,12 @@ public class MatchDetailRefreshPolicyTest {
         Match inNineMinutes = match(MatchStatus.SCHEDULED, "Fútbol", NOW + 9L * 60L * 1000L);
         Match justStarted = match(MatchStatus.SCHEDULED, "Fútbol", NOW - 1_000L);
 
-        assertEquals(MatchDetailRefreshPolicy.SCHEDULED_NEAR,
+        assertEquals(60_000L,
                 MatchDetailRefreshPolicy.nextDelay(inTenMinutes, null, NOW));
-        assertEquals(MatchDetailRefreshPolicy.SCHEDULED_NEAR,
+        assertEquals(60_000L,
                 MatchDetailRefreshPolicy.nextDelay(inNineMinutes, null, NOW));
-        assertEquals(MatchDetailRefreshPolicy.SCHEDULED_NEAR,
+        assertEquals(60_000L,
                 MatchDetailRefreshPolicy.nextDelay(justStarted, null, NOW));
-        assertTrue(MatchDetailRefreshPolicy.shouldPoll(inNineMinutes, null, NOW));
     }
 
     @Test
@@ -92,20 +87,18 @@ public class MatchDetailRefreshPolicyTest {
                 MatchDetailRefreshPolicy.nextDelay(tomorrow, null, NOW));
         assertEquals(Long.MAX_VALUE,
                 MatchDetailRefreshPolicy.nextDelay(noTime, null, NOW));
-        assertFalse(MatchDetailRefreshPolicy.shouldPoll(far, null, NOW));
     }
 
     @Test
     public void unknownOrMissingMatchUsesErrorDelay() {
-        assertEquals(MatchDetailRefreshPolicy.ERROR,
+        assertEquals(30_000L,
                 MatchDetailRefreshPolicy.nextDelay(
                         match(MatchStatus.UNKNOWN, "Fútbol", NOW), null, NOW));
-        assertEquals(MatchDetailRefreshPolicy.ERROR,
+        assertEquals(30_000L,
                 MatchDetailRefreshPolicy.nextDelay(null, null, NOW));
         assertEquals(Long.MAX_VALUE,
                 MatchDetailRefreshPolicy.nextDelay(null,
                         detail(MatchStatus.FINISHED), NOW));
-        assertTrue(MatchDetailRefreshPolicy.shouldPoll(null, null, NOW));
     }
 
     @Test

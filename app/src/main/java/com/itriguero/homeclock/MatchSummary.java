@@ -105,20 +105,6 @@ final class MatchSummary {
         return home ? homeCount : awayCount;
     }
 
-    /** Goleadores válidos de un lado, con el nombre completo y en orden. */
-    List<String> scorers(boolean home) {
-        List<Scorer> entries = home ? homeScorers : awayScorers;
-        if (entries.isEmpty()) return Collections.emptyList();
-
-        List<String> names = new ArrayList<>(entries.size());
-        for (Scorer scorer : entries) names.add(scorer.name);
-        return Collections.unmodifiableList(names);
-    }
-
-    boolean hasScorers(boolean home) {
-        return !(home ? homeScorers : awayScorers).isEmpty();
-    }
-
     /**
      * Nombres cortos para la cabecera: hasta {@code maxNames}, separados por
      * coma y con {@code +N} si quedan más. Los goles en propia se marcan como

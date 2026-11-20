@@ -231,15 +231,6 @@ public class CityListTest {
     }
 
     @Test
-    public void readOnlyFlagIsExposed() {
-        CityList list = new CityList(
-                List.of(city("A", 40.0, -3.0)), city("A", 40.0, -3.0).key(), true);
-
-        assertTrue(list.isReadOnly());
-        assertFalse(list(city("A", 40.0, -3.0)).isReadOnly());
-    }
-
-    @Test
     public void promoteDetectedKeepsOrderWhenAlreadyFirst() {
         City tresCantos = city("Tres Cantos", 40.6009, -3.7086);
         City vigo = city("Vigo", 42.23282, -8.72264);
@@ -297,32 +288,6 @@ public class CityListTest {
         assertEquals(8, list.size());
         assertEquals(signature, list.signature());
         assertEquals(selected.key(), list.selectedKey());
-    }
-
-    @Test
-    public void promoteDetectedOnFullListMovesExistingToFirst() {
-        CityList list = fullList();
-        City last = list.get(7);
-
-        assertEquals(CityList.DetectedResult.PROMOTED_EXISTING,
-                list.promoteDetected(last));
-
-        assertEquals(8, list.size());
-        assertEquals(last.key(), list.get(0).key());
-        assertEquals(last.key(), list.selectedKey());
-    }
-
-    @Test
-    public void promoteDetectedOnFullListKeepsExistingFirst() {
-        CityList list = fullList();
-        City first = list.get(0);
-
-        assertEquals(CityList.DetectedResult.ALREADY_FIRST,
-                list.promoteDetected(first));
-
-        assertEquals(8, list.size());
-        assertEquals(first.key(), list.get(0).key());
-        assertEquals(first.key(), list.selectedKey());
     }
 
     @Test

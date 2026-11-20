@@ -47,19 +47,6 @@ public final class MatchesSnapshot {
     }
 
     /**
-     * Resumen compacto para diagnóstico, p. ej. "365scores: OK · rfef: TIMEOUT".
-     */
-    public String summary() {
-        StringBuilder builder = new StringBuilder();
-        for (SourceStatus status : sources.values()) {
-            if (status == null) continue;
-            if (builder.length() > 0) builder.append(" · ");
-            builder.append(status.sourceId).append(": ").append(status.state.name());
-        }
-        return builder.toString();
-    }
-
-    /**
      * Devuelve una copia con los partidos actuales marcados como obsoletos y
      * los estados de fuente de este intento.
      */

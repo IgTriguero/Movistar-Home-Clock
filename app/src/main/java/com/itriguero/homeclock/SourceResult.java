@@ -6,9 +6,7 @@ import java.net.ConnectException;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
-import java.util.Collection;
 import java.util.Locale;
-import java.util.Map;
 
 /**
  * Envoltorio tipado con el resultado de una fuente. Nunca lanza excepciones:
@@ -47,10 +45,6 @@ final class SourceResult<T> {
                 fetchedAt, durationMs, fromCache);
     }
 
-    static <T> SourceResult<T> okFromCache(T data, long fetchedAt, long durationMs) {
-        return ok(data, fetchedAt, durationMs, true);
-    }
-
     static <T> SourceResult<T> empty(long fetchedAt, long durationMs) {
         return empty(fetchedAt, durationMs, false);
     }
@@ -59,10 +53,6 @@ final class SourceResult<T> {
                                      boolean fromCache) {
         return new SourceResult<>(SourceState.EMPTY, null, null,
                 fetchedAt, durationMs, fromCache);
-    }
-
-    static <T> SourceResult<T> emptyFromCache(long fetchedAt, long durationMs) {
-        return empty(fetchedAt, durationMs, true);
     }
 
     static <T> SourceResult<T> error(SourceState state, String error,
@@ -83,14 +73,6 @@ final class SourceResult<T> {
 
     boolean isOk() {
         return state == SourceState.OK || state == SourceState.EMPTY;
-    }
-
-    boolean hasData() {
-        if (data == null) return false;
-        if (data instanceof Collection) return !((Collection<?>) data).isEmpty();
-        if (data instanceof Map) return !((Map<?, ?>) data).isEmpty();
-        if (data instanceof Object[]) return ((Object[]) data).length > 0;
-        return true;
     }
 
     private static SourceState classify(Exception exception) {

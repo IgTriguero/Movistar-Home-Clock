@@ -8,6 +8,7 @@ import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -21,9 +22,7 @@ public class TrackedTeamListTest {
         assertEquals(0, list.size());
         assertEquals(0, list.activeCount());
         assertTrue(list.teams().isEmpty());
-        assertTrue(list.active().isEmpty());
         assertTrue(list.selection().isEmpty());
-        assertEquals("", list.signature());
         assertEquals("", list.activeSignature());
     }
 
@@ -119,7 +118,7 @@ public class TrackedTeamListTest {
     }
 
     @Test
-    public void activeKeepsOrderAndCountsOnlyEnabled() {
+    public void activeCountCountsOnlyEnabled() {
         TrackedTeamList list = new TrackedTeamList(TrackedTeam.defaults(), false);
 
         assertEquals(6, list.activeCount());
@@ -127,40 +126,24 @@ public class TrackedTeamListTest {
         list.setEnabled(TrackedTeam.asCeltas().key(), false);
 
         assertEquals(4, list.activeCount());
-        assertEquals(4, list.active().size());
-        assertEquals(131L, list.active().get(0).competitorId);
-        assertEquals(108L, list.active().get(1).competitorId);
-        assertEquals(204L, list.active().get(3).competitorId);
     }
 
     @Test
-    public void signatureIncludesAllEntriesAndEnabledState() {
+    public void activeSignatureIgnoresConfigurationOrderAndDisabledTeams() {
         TrackedTeamList list = new TrackedTeamList(TrackedTeam.defaults(), false);
-        String initial = list.signature();
+        String initial = list.activeSignature();
+        assertTrue(initial.contains("365scores:1:131"));
+        assertTrue(initial.contains("as-celtas:1:-1"));
 
-        assertTrue(initial.contains("365scores:1:131=true"));
-        assertTrue(initial.contains("as-celtas:1:-1=true"));
-
-        list.setEnabled("365scores:1:131", false);
-
-        assertFalse(list.signature().equals(initial));
-        assertTrue(list.signature().contains("365scores:1:131=false"));
-        assertFalse(list.activeSignature().contains("365scores:1:131"));
-    }
-
-    @Test
-    public void activeSignatureIsSortedAndIgnoresDisabledTeams() {
-        TrackedTeamList list = new TrackedTeamList(TrackedTeam.defaults(), false);
-
-        assertEquals("365scores:1:108|365scores:1:131|365scores:1:174"
-                        + "|365scores:1:5050|365scores:2:204|as-celtas:1:-1",
-                list.activeSignature());
+        List<TrackedTeam> reversed = new ArrayList<>(TrackedTeam.defaults());
+        Collections.reverse(reversed);
+        assertEquals(initial,
+                new TrackedTeamList(reversed, false).activeSignature());
 
         list.setEnabled("365scores:1:108", false);
 
-        assertEquals("365scores:1:131|365scores:1:174|365scores:1:5050"
-                        + "|365scores:2:204|as-celtas:1:-1",
-                list.activeSignature());
+        assertNotEquals(initial, list.activeSignature());
+        assertFalse(list.activeSignature().contains("365scores:1:108"));
     }
 
     @Test
@@ -180,14 +163,13 @@ public class TrackedTeamListTest {
     @Test
     public void readOnlyBlocksEveryMutation() {
         TrackedTeamList list = new TrackedTeamList(TrackedTeam.defaults(), true);
-        String signature = list.signature();
 
         assertTrue(list.isReadOnly());
         assertEquals(TrackedTeamList.AddResult.READ_ONLY, list.add(team(999)));
         assertEquals(TrackedTeamList.RemoveResult.READ_ONLY,
                 list.remove("365scores:1:131"));
         assertFalse(list.setEnabled("365scores:1:131", false));
-        assertEquals(signature, list.signature());
+        assertTrue(list.get(0).enabled);
     }
 
     @Test
