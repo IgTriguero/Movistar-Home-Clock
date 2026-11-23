@@ -38,6 +38,10 @@ public final class RfefClient {
 
     private static final String RESULTS_URL =
             "https://rfef.es/es/resultados?competition=33836146&group=33836147";
+    // La RFEF numera las temporadas desde 2004-2005 (2026-2027 = 22). Sin el
+    // parámetro season la página devuelve su error de servicio y los selects
+    // de jornada quedan vacíos.
+    private static final int FIRST_SEASON_START_YEAR = 2004;
     private static final String AJAX_URL = "https://rfef.es/novanet-content";
     private static final String GROUP_ID = "33836147";
     private static final String COMPETITION = "2ª Federación Femenina";
@@ -161,7 +165,7 @@ public final class RfefClient {
             // vacía; así una instalación limpia no se queda sin el partido.
             if (result.isEmpty()) {
                 try {
-                    String page = httpGet(RESULTS_URL);
+                    String page = httpGet(resultsUrl(LocalDate.now(MADRID)));
                     int pageJourney = parseJourneyNumber(page);
                     JSONArray pageItems = parseMatches(page);
                     addMatches(result, pageItems, pageJourney, date, now);
@@ -186,6 +190,19 @@ public final class RfefClient {
         }
     }
 
+    /**
+     * La RFEF cuenta las temporadas desde 2004-2005 y la nueva arranca en
+     * julio: 2026-2027 es la 22.
+     */
+    static int seasonId(LocalDate today) {
+        int startYear = today.getMonthValue() >= 7 ? today.getYear() : today.getYear() - 1;
+        return startYear - FIRST_SEASON_START_YEAR;
+    }
+
+    static String resultsUrl(LocalDate today) {
+        return RESULTS_URL + "&season=" + seasonId(today);
+    }
+
     static int parseJourneyNumber(String html) {
         if (html == null) return 0;
         Matcher matcher = JORNADA_HEADING.matcher(html);
@@ -206,7 +223,7 @@ public final class RfefClient {
 
         JSONArray parsed = null;
         try {
-            parsed = parseJourneys(httpGet(RESULTS_URL));
+            parsed = parseJourneys(httpGet(resultsUrl(LocalDate.now(MADRID))));
         } catch (Exception ignored) {
             // Si la RFEF no responde, se usa el calendario que ya tuviéramos.
         }

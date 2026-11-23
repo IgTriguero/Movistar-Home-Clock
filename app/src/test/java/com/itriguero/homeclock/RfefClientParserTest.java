@@ -5,9 +5,11 @@ import org.junit.Test;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 public class RfefClientParserTest {
 
@@ -21,6 +23,16 @@ public class RfefClientParserTest {
         assertEquals("", RfefClient.cleanText(null));
         assertEquals("", RfefClient.cleanText("   "));
         assertEquals("&desconocida;", RfefClient.cleanText("&desconocida;"));
+    }
+
+    @Test
+    public void buildsResultsUrlWithCurrentSeason() {
+        assertEquals(22, RfefClient.seasonId(LocalDate.of(2026, 11, 23)));
+        assertEquals(22, RfefClient.seasonId(LocalDate.of(2026, 7, 1)));
+        assertEquals(21, RfefClient.seasonId(LocalDate.of(2026, 6, 30)));
+        assertEquals(21, RfefClient.seasonId(LocalDate.of(2025, 9, 1)));
+        assertTrue(RfefClient.resultsUrl(LocalDate.of(2026, 11, 23))
+                .endsWith("&season=22"));
     }
 
     @Test

@@ -48,8 +48,6 @@ import static org.junit.Assume.assumeTrue;
 public class SourceContractTest {
 
     private static final int TIMEOUT_MS = 15_000;
-    private static final String RFEF_RESULTS_URL =
-            "https://rfef.es/es/resultados?competition=33836146&group=33836147";
     private static final String CELTA_AJAX_URL =
             "https://rccelta.es/wp/wp-admin/admin-ajax.php";
     // Misma UA que RfefClient/CeltaClient: el contrato reproduce la petición real.
@@ -236,7 +234,7 @@ public class SourceContractTest {
     public void rfefJourneyCalendarStillMatchesParser() throws Exception {
         requireContract();
 
-        String html = httpGet(RFEF_RESULTS_URL);
+        String html = httpGet(RfefClient.resultsUrl(LocalDate.now(ZoneId.of("Europe/Madrid"))));
         assertNotNull("RFEF devolvió una respuesta nula", html);
         assertFalse("RFEF devolvió una página vacía", html.trim().isEmpty());
 

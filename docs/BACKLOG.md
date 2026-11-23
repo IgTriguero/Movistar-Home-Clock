@@ -152,6 +152,13 @@ obtener los datos del servicio web” y dejar los selects de jornada vacíos. La
 app conserva el último calendario cacheado y lo marca como caché; Celta sigue
 funcionando con su `admin-ajax.php`.
 
+**Nota de fuentes (23/11/2026):** desde el 23/11 la página de resultados exige
+el parámetro `season` para renderizar el calendario. Sin él devuelve el error
+anterior con todos los selects vacíos. `RfefClient` añade la temporada actual
+(2026-2027 = 22, contando desde 2004-2005 y empezando en julio) y el contrato
+diario usa la misma URL, así que también detecta si la RFEF vuelve a cambiar
+el parámetro.
+
 ## 6. Fallback de fútbol si 365Scores falla 🔜 M
 
 `MatchRepository` reutiliza caché, pero no hay una segunda fuente para los
