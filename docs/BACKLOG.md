@@ -6,7 +6,7 @@ sirve para no perder el contexto técnico de cada propuesta.
 Estados: 💡 idea · 🔜 siguiente · 🚧 en curso · ✅ hecho
 Tamaño orientativo: S (1 día) · M (2-3 días) · L (4-5 días)
 
-Última revisión: 14/11/2026 (versión 1.2).
+Última revisión: 27/11/2026 (versión 1.3.1).
 
 ## 1. Varias ciudades guardadas con swipe de tiempo ✅ M
 
@@ -180,12 +180,14 @@ salud por fuente) y `DiagnosticsStore` lo persiste con debounce en
   quedar como “desconocida”.
 - Sin backup: el diagnóstico es local al dispositivo y no se restaura.
 
-## 8. Soak test de 72 h 🔜
+## 8. Soak test de 72 h ✅ M
 
-El 13/11/2026 se hizo un smoke de 7 h: 0 crashes, 0 ANRs, proceso vivo el
-100 % y PSS estabilizada (~45 MB). No sustituye a la prueba completa. Hacer las
-72 h sobre el build candidato de la próxima versión; revisar deriva de PSS,
-crashes, ANRs, actividad en primer plano y consumo.
+**Hecho el 27/11/2026 sobre 1.3.1.** 72 h completas, 4320 muestras: 0 crashes,
+0 ANRs, proceso vivo y `MainActivity` en primer plano el 100 %, sin cambios de
+PID ni de versión. PSS 47,8 → 60,7 MB (+12,6 MB, +27 %), con subidas escalonadas
+y mesetas; el criterio automático da PASS por el margen absoluto (<50 MB), pero
+la deriva relativa queda para revisar en la próxima release. Detalle en
+[`SOAK-1.3.1-72H.md`](SOAK-1.3.1-72H.md).
 
 ## 9. Device owner para actualización silenciosa 💡
 

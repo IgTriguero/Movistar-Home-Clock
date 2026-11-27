@@ -367,3 +367,9 @@ objetivo y sin actualizaciones pendientes. Si la app se autoactualiza, revisa
 - La versión se lee con `dumpsys package` al arrancar y solo se relee cuando
   cambia el PID. Como instalar una APK reinicia siempre el proceso, un cambio de
   versión no se escapa; en Android antiguo puede faltar `lastUpdateTime`.
+
+## Resultados
+
+- [1.3.1 — 72 h (24–27/11/2026)](SOAK-1.3.1-72H.md): PASS; 0 crashes/ANRs,
+  proceso vivo y `MainActivity` en primer plano el 100 %. PSS 47,8 → 60,7 MB
+  (+12,6 MB, +27 %), con subidas escalonadas y mesetas.
